@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_STATE: dict[str, Any] = {
+    'network': {
+        'ssid': 'CPE-5G',
+        'password': 'ChangeMe123',
+        'mode': 'dhcp',
+        'channel': 'Auto',
+        'guest_wifi': 'enabled',
+        'last_saved': '2026-03-20 10:00 UTC',
+    },
+    'upgrade': {
+        'last_filename': 'cpe_gateway_v2.0.3.bin',
+        'status': 'validated',
+        'last_result': '上一版固件已通过发布前校验',
+        'updated_at': '2026-03-21 08:30 UTC',
+    },
+    'system': {
+        'device_model': 'CPE-X3000',
+        'firmware_version': 'v2.0.3',
+        'uptime': '14 days',
+        'wan_status': 'Online',
+        'lan_clients': 18,
+        'cpu_usage': '24%',
+        'memory_usage': '58%',
+    },
+    'clients': [
+        {'name': 'Office-Laptop', 'ip': '192.168.1.12', 'band': '5GHz', 'quality': 'Excellent'},
+        {'name': 'Meeting-Room-TV', 'ip': '192.168.1.28', 'band': '2.4GHz', 'quality': 'Good'},
+        {'name': 'QA-Phone', 'ip': '192.168.1.41', 'band': '5GHz', 'quality': 'Excellent'},
+    ],
+    'activities': [
+        {'time': '09:12', 'event': '自动化冒烟测试通过', 'detail': '登录、网络配置、升级页校验全部成功'},
+        {'time': '08:40', 'event': '部署新测试环境', 'detail': 'Docker 测试容器重新初始化完成'},
+        {'time': '07:55', 'event': '发现新固件包', 'detail': '等待执行升级前门禁校验'},
+    ],
+    'diagnostics': {
+        'last_run': '2026-03-21 09:15 UTC',
+        'gateway_ping': '12 ms',
+        'dns_resolution': '正常',
+        'cloud_connectivity': '正常',
+        'packet_loss': '0%',
+    },
+}
+
+
+class StateRepository:
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self.save(DEFAULT_STATE)
+
+    def load(self) -> dict[str, Any]:
+        with self.path.open('r', encoding='utf-8') as file:
+            return json.load(file)
+
+    def save(self, state: dict[str, Any]) -> dict[str, Any]:
+        with self.path.open('w', encoding='utf-8') as file:
+            json.dump(state, file, ensure_ascii=False, indent=2)
+        return state
+
+    def reset(self) -> dict[str, Any]:
+        state = deepcopy(DEFAULT_STATE)
+        self.save(state)
+        return state
