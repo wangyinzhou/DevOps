@@ -44,6 +44,11 @@
   ],
   "activities": [
     {
+      "time": "07:00",
+      "event": "重新执行运行诊断",
+      "detail": "网络连通性、DNS 与云端访问状态均正常"
+    },
+    {
       "time": "09:12",
       "event": "自动化冒烟测试通过",
       "detail": "登录、网络配置、升级页校验全部成功"
@@ -60,8 +65,8 @@
     }
   ],
   "diagnostics": {
-    "last_run": "2026-03-21 09:15 UTC",
-    "gateway_ping": "12 ms",
+    "last_run": "2026-03-23 07:00 UTC",
+    "gateway_ping": "9 ms",
     "dns_resolution": "正常",
     "cloud_connectivity": "正常",
     "packet_loss": "0%"
