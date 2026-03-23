@@ -6,6 +6,7 @@
 - **自动化测试**：基于 `Pytest + Selenium` 实现面向 CPE 网关 Web 管理界面的 UI 自动化测试框架。
 - **容器化运行**：通过 `docker-compose.yml` 启动 Mock CPE Web、Selenium Chrome 和测试执行容器，模拟隔离的持续交付环境。
 - **结果反馈**：生成 `pytest` 覆盖率报告与 `Allure` 结果文件，便于在 Jenkins 中可视化展示。
+- **前端演示界面**：Mock CPE 平台现已提供浅色高级风格页面，并补充控制台、网络设置、固件升级、运行诊断等模块，适合论文展示与自动化测试演示。
 
 ## 项目结构
 
@@ -33,17 +34,26 @@
 - 仪表盘页面 `/dashboard`
 - 网络配置页面 `/network`
 - 固件升级页面 `/upgrade`
+- 运行诊断页面 `/diagnostics`
 
-这些页面可作为 Selenium 自动化测试的被测对象，用于验证登录、参数修改、升级文件校验等典型场景。
+这些页面可作为 Selenium 自动化测试的被测对象，用于验证登录、参数修改、升级文件校验、环境健康检查等典型场景。
 
-### 2. 自动化测试框架设计
+### 2. 当前界面能力
+当前 Web 页面已经具备以下演示功能：
+
+- **控制台首页**：显示设备型号、固件版本、WAN 状态、在线终端、运行指标、最近活动。
+- **网络设置**：支持配置 SSID、无线密码、联网模式、Wi‑Fi 信道、访客 Wi‑Fi，并展示最近保存时间。
+- **固件升级**：支持校验固件文件名、显示最近固件、最近校验结果与发布时间。
+- **运行诊断**：支持展示 Ping、DNS、云端连通性、丢包率，并模拟重新执行诊断。
+
+### 3. 自动化测试框架设计
 框架采用 Page Object Model（POM）：
 
 - `BasePage`：统一处理元素等待、点击、输入、截图等通用能力。
 - `LoginPage`、`DashboardPage`、`NetworkPage`、`UpgradePage`：分别封装业务页面行为。
 - `conftest.py`：提供浏览器驱动、环境变量、失败截图与 Allure 附件能力。
 
-### 3. 流水线能力
+### 4. 流水线能力
 `Jenkinsfile` 包含以下阶段：
 
 1. Checkout：拉取代码
@@ -55,7 +65,33 @@
 
 ## 快速开始
 
-### 方式一：本地 Python 运行
+### 方式一：本地 Python 运行（Windows PowerShell）
+
+```powershell
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m flask --app app.main run --host 0.0.0.0 --port 5000
+```
+
+另开一个 PowerShell 窗口执行：
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+pytest tests/unit -q
+```
+
+如果你已准备好 Selenium Server（例如 Docker 中的 `selenium/standalone-chrome`）：
+
+```powershell
+$env:BASE_URL = 'http://127.0.0.1:5000'
+$env:SELENIUM_REMOTE_URL = 'http://127.0.0.1:4444/wd/hub'
+pytest tests/ui --alluredir=allure-results
+```
+
+### 方式二：本地 Python 运行（Linux / macOS）
 
 ```bash
 python -m venv .venv
@@ -70,19 +106,18 @@ python -m flask --app app.main run --host 0.0.0.0 --port 5000
 pytest tests/unit -q
 ```
 
-如果你已准备好 Selenium Server（例如 Docker 中的 `selenium/standalone-chrome`）：
-
-```bash
-export BASE_URL=http://127.0.0.1:5000
-export SELENIUM_REMOTE_URL=http://127.0.0.1:4444/wd/hub
-pytest tests/ui --alluredir=allure-results
-```
-
-### 方式二：Docker Compose 运行
+### 方式三：Docker Compose 运行
 
 ```bash
 docker compose up --build --abort-on-container-exit test-runner
 ```
+
+## 默认登录账号
+
+| 项目 | 默认值 |
+|---|---|
+| 用户名 | `admin` |
+| 密码 | `admin123` |
 
 ## 关键环境变量
 
@@ -96,13 +131,14 @@ docker compose up --build --abort-on-container-exit test-runner
 
 ## 测试覆盖建议
 
-- 核心业务优先：登录、网络配置保存、固件升级输入校验。
+- 核心业务优先：登录、网络配置保存、固件升级输入校验、诊断页访问。
 - 在 Jenkins 中通过 `pytest-cov` 监控测试代码的逻辑覆盖率。
 - 对 UI 用例启用失败截图、显式等待和重试机制，提高执行稳定性。
+- 可继续扩展真实设备接口校验、参数化测试和数据驱动测试。
 
 ## 后续可扩展方向
 
-- 接入真实 CPE 固件刷写与设备状态采集接口
-- 增加参数化数据驱动用例
-- 增加邮件/企业微信/钉钉通知
-- 接入 GitHub Actions 或 GitLab CI 形成多平台流水线
+- 接入真实 CPE 固件刷写与设备状态采集接口。
+- 接入企业微信、钉钉或邮件通知。
+- 补充更细粒度的系统设置、用户管理、日志中心等页面。
+- 接入 GitHub Actions、GitLab CI 或企业内部 DevOps 平台形成多平台流水线。

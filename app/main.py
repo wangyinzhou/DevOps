@@ -1,13 +1,58 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import Flask, redirect, render_template_string, request, session, url_for
 
 app = Flask(__name__)
 app.secret_key = 'devops-demo-secret'
 
+
+def now_text() -> str:
+    return datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+
+
 STATE = {
-    'network': {'ssid': 'CPE-5G', 'password': 'ChangeMe123', 'mode': 'dhcp'},
-    'upgrade': {'last_filename': None, 'status': 'idle'},
+    'network': {
+        'ssid': 'CPE-5G',
+        'password': 'ChangeMe123',
+        'mode': 'dhcp',
+        'channel': 'Auto',
+        'guest_wifi': 'enabled',
+        'last_saved': '2026-03-20 10:00 UTC',
+    },
+    'upgrade': {
+        'last_filename': 'cpe_gateway_v2.0.3.bin',
+        'status': 'validated',
+        'last_result': '上一版固件已通过发布前校验',
+        'updated_at': '2026-03-21 08:30 UTC',
+    },
+    'system': {
+        'device_model': 'CPE-X3000',
+        'firmware_version': 'v2.0.3',
+        'uptime': '14 days',
+        'wan_status': 'Online',
+        'lan_clients': 18,
+        'cpu_usage': '24%',
+        'memory_usage': '58%',
+    },
+    'clients': [
+        {'name': 'Office-Laptop', 'ip': '192.168.1.12', 'band': '5GHz', 'quality': 'Excellent'},
+        {'name': 'Meeting-Room-TV', 'ip': '192.168.1.28', 'band': '2.4GHz', 'quality': 'Good'},
+        {'name': 'QA-Phone', 'ip': '192.168.1.41', 'band': '5GHz', 'quality': 'Excellent'},
+    ],
+    'activities': [
+        {'time': '09:12', 'event': '自动化冒烟测试通过', 'detail': '登录、网络配置、升级页校验全部成功'},
+        {'time': '08:40', 'event': '部署新测试环境', 'detail': 'Docker 测试容器重新初始化完成'},
+        {'time': '07:55', 'event': '发现新固件包', 'detail': '等待执行升级前门禁校验'},
+    ],
+    'diagnostics': {
+        'last_run': '2026-03-21 09:15 UTC',
+        'gateway_ping': '12 ms',
+        'dns_resolution': '正常',
+        'cloud_connectivity': '正常',
+        'packet_loss': '0%',
+    },
 }
 
 BASE_TEMPLATE = """
@@ -19,20 +64,25 @@ BASE_TEMPLATE = """
   <title>{{ title }}</title>
   <style>
     :root {
-      --bg: #07111f;
-      --bg-elevated: rgba(10, 23, 41, 0.78);
-      --panel: rgba(14, 30, 54, 0.88);
-      --panel-soft: rgba(22, 42, 72, 0.72);
-      --line: rgba(148, 163, 184, 0.18);
-      --text: #e5eefb;
-      --muted: #94a3b8;
-      --primary: #6ee7f9;
-      --primary-strong: #38bdf8;
-      --accent: #8b5cf6;
-      --success: #34d399;
-      --danger: #fb7185;
-      --warning: #fbbf24;
-      --shadow: 0 24px 80px rgba(2, 8, 23, 0.45);
+      --bg: #f4f7fb;
+      --bg-accent: #eef4ff;
+      --surface: rgba(255, 255, 255, 0.92);
+      --surface-soft: #f8fbff;
+      --surface-strong: #ffffff;
+      --line: #dbe4f0;
+      --text: #162033;
+      --muted: #66758f;
+      --primary: #2563eb;
+      --primary-soft: #eff6ff;
+      --primary-border: #bfdbfe;
+      --success: #059669;
+      --success-soft: #ecfdf5;
+      --warning: #d97706;
+      --warning-soft: #fff7ed;
+      --danger: #dc2626;
+      --danger-soft: #fef2f2;
+      --shadow-lg: 0 24px 60px rgba(37, 99, 235, 0.08);
+      --shadow-md: 0 12px 30px rgba(15, 23, 42, 0.08);
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
@@ -46,65 +96,99 @@ BASE_TEMPLATE = """
       font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
-        radial-gradient(circle at top right, rgba(139, 92, 246, 0.18), transparent 30%),
-        linear-gradient(160deg, #030712 0%, #07111f 45%, #0b1730 100%);
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.12), transparent 24%),
+        radial-gradient(circle at right 15%, rgba(59, 130, 246, 0.08), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #f4f7fb 48%, #eef4ff 100%);
     }
 
-    body::before,
-    body::after {
-      content: "";
-      position: fixed;
-      inset: auto;
-      width: 320px;
-      height: 320px;
-      border-radius: 999px;
-      filter: blur(72px);
-      opacity: 0.35;
-      pointer-events: none;
-      z-index: 0;
-    }
+    a { color: inherit; }
 
-    body::before {
-      top: 80px;
-      left: -40px;
-      background: rgba(56, 189, 248, 0.25);
-    }
-
-    body::after {
-      right: -60px;
-      bottom: 0;
-      background: rgba(139, 92, 246, 0.24);
-    }
-
-    .page-shell {
-      position: relative;
-      z-index: 1;
-      width: min(1180px, calc(100% - 40px));
+    .shell {
+      width: min(1240px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 32px 0 48px;
+      padding: 24px 0 40px;
     }
 
-    .hero {
+    .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 28px;
-      padding: 22px 26px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      background: rgba(7, 17, 31, 0.58);
-      backdrop-filter: blur(20px);
-      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      border: 1px solid rgba(219, 228, 240, 0.95);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(12px);
+      margin-bottom: 20px;
     }
 
-    .hero h1,
-    .card-title,
-    .section-title,
-    .stat-value {
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-badge {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+      color: white;
+      font-size: 18px;
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+    }
+
+    .brand-title {
       margin: 0;
-      letter-spacing: -0.03em;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle,
+    .helper,
+    .meta,
+    .muted,
+    .stat-label,
+    label,
+    .nav-link,
+    .table th,
+    .timeline-time {
+      color: var(--muted);
+    }
+
+    .brand-subtitle {
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-strong);
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.95));
+      box-shadow: var(--shadow-lg);
     }
 
     .eyebrow {
@@ -113,226 +197,230 @@ BASE_TEMPLATE = """
       gap: 8px;
       margin-bottom: 10px;
       padding: 6px 12px;
-      border: 1px solid rgba(110, 231, 249, 0.18);
       border-radius: 999px;
+      border: 1px solid var(--primary-border);
+      background: var(--primary-soft);
       color: var(--primary);
-      background: rgba(14, 165, 233, 0.09);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
     }
 
-    .subtitle,
-    .helper,
-    .meta,
-    .stat-label,
-    .nav-link,
-    label,
-    .status-chip {
-      color: var(--muted);
+    .page-title,
+    .section-title,
+    .stat-value,
+    .card-title,
+    .mini-title {
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+
+    .page-title {
+      font-size: clamp(28px, 4vw, 42px);
     }
 
     .subtitle {
-      margin-top: 10px;
-      line-height: 1.7;
-      max-width: 700px;
+      margin: 12px 0 0;
+      max-width: 760px;
+      line-height: 1.75;
+      color: var(--muted);
     }
 
-    .hero-badge {
-      min-width: 180px;
+    .header-side {
+      min-width: 220px;
       padding: 18px 20px;
-      border: 1px solid rgba(110, 231, 249, 0.16);
       border-radius: 18px;
-      background: linear-gradient(180deg, rgba(14, 30, 54, 0.92), rgba(8, 20, 38, 0.92));
-      text-align: right;
+      border: 1px solid var(--primary-border);
+      background: white;
+      box-shadow: var(--shadow-md);
     }
 
-    .hero-badge strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 24px;
-      color: #f8fafc;
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .status-pill.validated,
+    .status-pill.online,
+    .status-pill.success {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .status-pill.idle,
+    .status-pill.warning {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    .status-pill.rejected,
+    .status-pill.error {
+      background: var(--danger-soft);
+      color: var(--danger);
     }
 
     .layout,
-    .stats-grid,
-    .action-grid {
+    .grid-2,
+    .stats-grid {
       display: grid;
-      gap: 22px;
+      gap: 20px;
     }
 
     .layout {
-      grid-template-columns: repeat(12, 1fr);
+      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
 
-    .card,
+    .main-col { grid-column: span 8; }
+    .side-col { grid-column: span 4; }
+    .full-col { grid-column: 1 / -1; }
+
     .panel,
     .stat-card,
-    .action-card {
+    .tile,
+    .login-card {
       border: 1px solid var(--line);
       border-radius: var(--radius-xl);
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(11, 19, 35, 0.92));
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(16px);
+      background: var(--surface);
+      box-shadow: var(--shadow-md);
     }
 
-    .card,
-    .panel {
-      padding: 28px;
+    .panel,
+    .login-card {
+      padding: 26px;
     }
 
-    .card h2,
-    .panel h2,
-    .section-title {
-      font-size: 24px;
+    .login-wrap {
+      display: grid;
+      place-items: center;
+      min-height: calc(100vh - 96px);
     }
 
     .login-card {
-      grid-column: 4 / span 6;
-      overflow: hidden;
+      width: min(560px, 100%);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.98));
+      box-shadow: var(--shadow-lg);
     }
 
-    .dashboard-main,
-    .settings-main,
-    .upgrade-main {
-      grid-column: span 8;
+    .field-grid,
+    .actions,
+    .nav,
+    .summary-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
     }
 
-    .dashboard-side,
-    .settings-side,
-    .upgrade-side {
-      grid-column: span 4;
-    }
-
-    .helper {
-      margin: 12px 0 0;
-      font-size: 14px;
-      line-height: 1.7;
-    }
-
-    .field-group {
+    .form-grid {
       display: grid;
       gap: 18px;
-      margin-top: 26px;
+      margin-top: 24px;
+    }
+
+    .field-grid > * {
+      flex: 1 1 220px;
     }
 
     label {
       display: grid;
-      gap: 10px;
+      gap: 8px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     input,
     select {
       width: 100%;
       padding: 14px 16px;
-      border: 1px solid rgba(148, 163, 184, 0.16);
+      border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      background: rgba(8, 15, 28, 0.92);
+      background: white;
       color: var(--text);
       outline: none;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     input:focus,
     select:focus {
-      border-color: rgba(110, 231, 249, 0.58);
-      box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.12);
-      transform: translateY(-1px);
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-      margin-top: 24px;
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
     }
 
     .btn,
-    .ghost-link,
-    .nav-link {
+    .ghost-btn,
+    .nav-link,
+    .tile-link {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
       text-decoration: none;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
 
     .btn {
-      border: 0;
+      padding: 13px 18px;
+      border: none;
       border-radius: 14px;
-      padding: 14px 18px;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      color: white;
+      font-weight: 800;
       cursor: pointer;
-      font-size: 15px;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+    }
+
+    .ghost-btn,
+    .nav-link {
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: white;
       font-weight: 700;
-      color: #03121f;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
-      box-shadow: 0 18px 36px rgba(14, 165, 233, 0.24);
     }
 
     .btn:hover,
-    .ghost-link:hover,
+    .ghost-btn:hover,
     .nav-link:hover,
-    .action-card:hover {
-      transform: translateY(-2px);
-    }
-
-    .btn-secondary {
-      color: var(--text);
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      box-shadow: none;
-    }
-
-    .ghost-link,
-    .nav-link {
-      padding: 12px 16px;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: 14px;
-      background: rgba(9, 18, 33, 0.68);
-    }
-
-    .nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 22px;
+    .tile-link:hover {
+      transform: translateY(-1px);
     }
 
     .message {
       margin-top: 18px;
       padding: 14px 16px;
       border-radius: 16px;
-      border: 1px solid rgba(52, 211, 153, 0.2);
-      background: rgba(16, 185, 129, 0.1);
-      color: #d1fae5;
+      line-height: 1.65;
       font-size: 14px;
-      line-height: 1.6;
+      font-weight: 600;
+    }
+
+    .message.success {
+      background: var(--success-soft);
+      color: var(--success);
+      border: 1px solid #bbf7d0;
     }
 
     .message.error {
-      border-color: rgba(251, 113, 133, 0.22);
-      background: rgba(244, 63, 94, 0.1);
-      color: #ffe4e6;
+      background: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid #fecaca;
     }
 
     .stats-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: 28px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 24px;
     }
 
     .stat-card {
       padding: 22px;
-    }
-
-    .stat-value {
-      margin-top: 12px;
-      font-size: 28px;
-      font-weight: 800;
-      color: #f8fafc;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
     }
 
     .stat-label {
@@ -341,93 +429,143 @@ BASE_TEMPLATE = """
       letter-spacing: 0.08em;
     }
 
-    .action-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 24px;
+    .stat-value {
+      margin-top: 10px;
+      font-size: 28px;
+      font-weight: 800;
     }
 
-    .action-card {
-      padding: 22px;
-      text-decoration: none;
+    .summary-grid {
+      margin-top: 20px;
+    }
+
+    .summary-item {
+      flex: 1 1 180px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface-soft);
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 20px;
       color: var(--text);
     }
 
-    .action-card p {
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 22px;
+    }
+
+    .tile {
+      padding: 22px;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .tile p,
+    .mini-desc,
+    .timeline-detail {
       margin: 10px 0 0;
       line-height: 1.7;
       color: var(--muted);
     }
 
-    .status-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 14px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      background: rgba(10, 18, 33, 0.72);
-      font-size: 13px;
-      font-weight: 700;
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 18px;
+      overflow: hidden;
+      border-radius: 18px;
+      background: white;
     }
 
-    .status-chip strong {
-      color: #f8fafc;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    .table th,
+    .table td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid #edf2f7;
+      font-size: 14px;
     }
 
-    .status-chip.validated { border-color: rgba(52, 211, 153, 0.28); color: #bbf7d0; }
-    .status-chip.rejected { border-color: rgba(251, 113, 133, 0.28); color: #fecdd3; }
-    .status-chip.idle { border-color: rgba(251, 191, 36, 0.24); color: #fde68a; }
+    .table td {
+      color: var(--text);
+      font-weight: 600;
+    }
 
-    .list {
-      margin: 18px 0 0;
+    .timeline {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .timeline-item {
+      display: grid;
+      gap: 6px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface-soft);
+    }
+
+    .timeline-title {
+      font-weight: 800;
+    }
+
+    .mini-list {
+      margin: 16px 0 0;
       padding-left: 18px;
       color: var(--muted);
       line-height: 1.9;
     }
 
-    .footer-note {
-      margin-top: 16px;
-      padding-top: 18px;
-      border-top: 1px solid rgba(148, 163, 184, 0.12);
-      color: var(--muted);
-      font-size: 13px;
+    @media (max-width: 1080px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .main-col,
+      .side-col { grid-column: 1 / -1; }
     }
 
-    @media (max-width: 980px) {
-      .layout { grid-template-columns: 1fr; }
-      .login-card,
-      .dashboard-main,
-      .dashboard-side,
-      .settings-main,
-      .settings-side,
-      .upgrade-main,
-      .upgrade-side { grid-column: auto; }
-      .hero { flex-direction: column; align-items: flex-start; }
-      .hero-badge { width: 100%; text-align: left; }
+    @media (max-width: 720px) {
+      .shell { width: min(100% - 20px, 1240px); }
+      .topbar,
+      .page-header { padding: 20px; }
+      .topbar,
+      .page-header { flex-direction: column; align-items: flex-start; }
       .stats-grid,
-      .action-grid { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .login-wrap { min-height: auto; padding-top: 24px; }
     }
   </style>
 </head>
 <body>
-  <div class="page-shell">
+  <main class="shell">
+    {% if show_nav %}
+      <section class="topbar">
+        <div class="brand">
+          <div class="brand-badge">CPE</div>
+          <div>
+            <h1 class="brand-title">CPE Gateway 管理平台</h1>
+            <div class="brand-subtitle">持续测试、持续交付与网关运维的统一演示工作台</div>
+          </div>
+        </div>
+        <div class="user-chip">管理员：{{ username }}</div>
+      </section>
+    {% endif %}
     {{ content | safe }}
-  </div>
+  </main>
 </body>
 </html>
 """
 
 LOGIN_CONTENT = """
-<section class="layout">
-  <div class="card login-card">
-    <span class="eyebrow">CPE Gateway</span>
-    <h1 id="page-title" class="card-title">统一接入的设备管理后台</h1>
-    <p class="subtitle">以简洁的视觉层次展示登录入口、设备状态与运维动作，适合在持续测试与演示场景中快速验证核心流程。</p>
+<section class="login-wrap">
+  <div class="login-card">
+    <span class="eyebrow">Sign In</span>
+    <h2 id="page-title" class="page-title">欢迎进入 CPE 网关控制平台</h2>
+    <p class="subtitle">该演示系统用于模拟 CPE 设备管理页面，并为 Jenkins + Pytest + Selenium 的持续回归测试提供稳定的被测对象。</p>
     {% if error %}<div id="error-message" class="message error">{{ error }}</div>{% endif %}
-    <form method="post" class="field-group">
+    <form method="post" class="form-grid">
       <label>用户名
         <input id="username" name="username" placeholder="请输入管理员账号" />
       </label>
@@ -438,171 +576,330 @@ LOGIN_CONTENT = """
         <button id="login-btn" class="btn" type="submit">登录系统</button>
       </div>
     </form>
-    <p class="footer-note">默认演示账号用于本地自动化测试场景，可在后续接入数据库或统一认证服务。</p>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="muted">默认账号</span>
+        <strong>admin</strong>
+      </div>
+      <div class="summary-item">
+        <span class="muted">默认密码</span>
+        <strong>admin123</strong>
+      </div>
+    </div>
   </div>
 </section>
 """
 
 DASHBOARD_CONTENT = """
-<section class="hero">
+<section class="page-header">
   <div>
     <span class="eyebrow">Overview</span>
-    <h1 id="dashboard-title">设备控制台</h1>
-    <p id="welcome-banner" class="subtitle">欢迎您，{{ username }}。当前页面提供网络设置、固件升级与持续交付验证的统一入口。</p>
+    <h2 id="dashboard-title" class="page-title">设备控制台</h2>
+    <p id="welcome-banner" class="subtitle">欢迎您，{{ username }}。当前页面集中展示设备运行状态、连接终端、自动化测试结果以及常用运维入口。</p>
     <div class="nav">
       <a id="nav-network" class="nav-link" href="{{ url_for('network') }}">网络设置</a>
       <a id="nav-upgrade" class="nav-link" href="{{ url_for('upgrade') }}">固件升级</a>
+      <a id="nav-diagnostics" class="nav-link" href="{{ url_for('diagnostics') }}">运行诊断</a>
       <a id="nav-logout" class="nav-link" href="{{ url_for('logout') }}">安全退出</a>
     </div>
   </div>
-  <div class="hero-badge">
-    <span class="meta">系统状态</span>
-    <strong>Stable</strong>
-    <div class="status-chip idle">流水线模式：<strong>Ready</strong></div>
+  <div class="header-side">
+    <div class="muted">WAN 状态</div>
+    <div style="margin-top: 10px;"><span class="status-pill online">{{ system['wan_status'] }}</span></div>
+    <div class="helper" style="margin-top: 12px;">固件版本：{{ system['firmware_version'] }}<br/>设备型号：{{ system['device_model'] }}</div>
   </div>
 </section>
 
-<section class="layout">
-  <div class="panel dashboard-main">
-    <span class="eyebrow">Metrics</span>
-    <h2 class="section-title">关键运行指标</h2>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">自动化覆盖</div>
-        <div class="stat-value">95%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">最近构建</div>
-        <div class="stat-value">12 min</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">运行状态</div>
-        <div class="stat-value">Pass</div>
-      </div>
-    </div>
+<section class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">在线终端</div>
+    <div class="stat-value">{{ system['lan_clients'] }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">CPU 使用率</div>
+    <div class="stat-value">{{ system['cpu_usage'] }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">内存使用率</div>
+    <div class="stat-value">{{ system['memory_usage'] }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">设备在线时长</div>
+    <div class="stat-value">{{ system['uptime'] }}</div>
+  </div>
+</section>
 
-    <div class="action-grid">
-      <a class="action-card" href="{{ url_for('network') }}">
-        <h3>网络配置管理</h3>
-        <p>集中维护 SSID、接入模式与基础参数，适合演示页面表单类回归测试。</p>
-      </a>
-      <a class="action-card" href="{{ url_for('upgrade') }}">
-        <h3>固件升级验证</h3>
-        <p>通过文件名校验与状态反馈，模拟持续交付前的升级包核验流程。</p>
-      </a>
+<section class="layout" style="margin-top: 22px;">
+  <div class="panel main-col">
+    <span class="eyebrow">Operations</span>
+    <h3 class="section-title">核心功能模块</h3>
+    <div class="grid-2">
+      <div class="tile">
+        <h4 class="mini-title">网络配置中心</h4>
+        <p>管理 SSID、工作模式、访客 Wi‑Fi 与信道策略，适合做表单型 UI 自动化回归。</p>
+        <div class="actions"><a class="tile-link btn" href="{{ url_for('network') }}">进入网络设置</a></div>
+      </div>
+      <div class="tile">
+        <h4 class="mini-title">固件交付门禁</h4>
+        <p>校验待发布固件包、展示最近一次校验结果，并为持续交付决策提供可视化反馈。</p>
+        <div class="actions"><a class="tile-link btn" href="{{ url_for('upgrade') }}">进入固件升级</a></div>
+      </div>
+      <div class="tile">
+        <h4 class="mini-title">运行诊断中心</h4>
+        <p>查看网关 Ping、DNS、云端连通性和丢包情况，模拟交付前的环境健康检查流程。</p>
+        <div class="actions"><a class="tile-link ghost-btn" href="{{ url_for('diagnostics') }}">查看诊断报告</a></div>
+      </div>
+      <div class="tile">
+        <h4 class="mini-title">自动化测试视图</h4>
+        <p>该页面布局稳定、层级清晰，便于 Selenium 基于元素 ID 和文本内容构建可维护脚本。</p>
+        <ul class="mini-list">
+          <li>保留核心元素 ID，避免影响现有测试。</li>
+          <li>页面已修复模板渲染问题，导航链接可正常访问。</li>
+        </ul>
+      </div>
     </div>
   </div>
 
-  <aside class="panel dashboard-side">
-    <span class="eyebrow">Summary</span>
-    <h2 class="section-title">运维提示</h2>
-    <ul class="list">
-      <li>每次配置变更都可由 Selenium 自动回归验证。</li>
-      <li>升级入口适合接入 Jenkins 与 Allure 报告链路。</li>
-      <li>当前界面采用响应式布局，便于扩展更多模块。</li>
-    </ul>
-    <p class="footer-note">页面样式已统一为深色玻璃拟态风格，适合项目演示、论文截图与前端自动化定位。</p>
+  <aside class="panel side-col">
+    <span class="eyebrow">Delivery</span>
+    <h3 class="section-title">最近交付状态</h3>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="muted">升级状态</span>
+        <strong>{{ upgrade['status'] | upper }}</strong>
+      </div>
+      <div class="summary-item">
+        <span class="muted">最近固件</span>
+        <strong>{{ upgrade['last_filename'] }}</strong>
+      </div>
+    </div>
+    <div class="helper" style="margin-top: 16px;">{{ upgrade['last_result'] }}</div>
+  </aside>
+
+  <div class="panel main-col">
+    <span class="eyebrow">Clients</span>
+    <h3 class="section-title">当前在线终端</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>设备名称</th>
+          <th>IP 地址</th>
+          <th>频段</th>
+          <th>连接质量</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in clients %}
+          <tr>
+            <td>{{ client['name'] }}</td>
+            <td>{{ client['ip'] }}</td>
+            <td>{{ client['band'] }}</td>
+            <td>{{ client['quality'] }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <aside class="panel side-col">
+    <span class="eyebrow">Activity</span>
+    <h3 class="section-title">最近活动</h3>
+    <div class="timeline">
+      {% for item in activities %}
+        <div class="timeline-item">
+          <div class="timeline-time">{{ item['time'] }}</div>
+          <div class="timeline-title">{{ item['event'] }}</div>
+          <div class="timeline-detail">{{ item['detail'] }}</div>
+        </div>
+      {% endfor %}
+    </div>
   </aside>
 </section>
 """
 
 NETWORK_CONTENT = """
-<section class="hero">
+<section class="page-header">
   <div>
     <span class="eyebrow">Network Settings</span>
-    <h1 id="network-title">网络设置</h1>
-    <p class="subtitle">管理网关无线名称、接入密码与联网模式，保存后可直接用于配置类 UI 自动化回归测试。</p>
+    <h2 id="network-title" class="page-title">网络设置</h2>
+    <p class="subtitle">配置无线网络参数、模式和访客接入策略。页面保留了表单元素标识，适合直接用于自动化测试回归。</p>
   </div>
-  <div class="hero-badge">
-    <span class="meta">当前模式</span>
-    <strong>{{ data['mode'] | upper }}</strong>
+  <div class="header-side">
+    <div class="muted">最近保存时间</div>
+    <div style="margin-top: 10px; font-weight: 800;">{{ data['last_saved'] }}</div>
+    <div class="helper" style="margin-top: 12px;">当前模式：{{ data['mode'] | upper }}<br/>访客 Wi‑Fi：{{ data['guest_wifi'] }}</div>
   </div>
 </section>
 
 <section class="layout">
-  <div class="panel settings-main">
+  <div class="panel main-col">
     <span class="eyebrow">Configuration</span>
-    <h2 class="section-title">编辑网络参数</h2>
-    {% if message %}<div id="network-message" class="message">{{ message }}</div>{% endif %}
-    <form method="post" class="field-group">
-      <label>SSID
-        <input id="ssid" name="ssid" value="{{ data['ssid'] }}" />
-      </label>
-      <label>密码
-        <input id="wifi-password" name="password" value="{{ data['password'] }}" />
-      </label>
-      <label>模式
-        <select id="mode" name="mode">
-          <option value="dhcp" {% if data['mode'] == 'dhcp' %}selected{% endif %}>DHCP</option>
-          <option value="pppoe" {% if data['mode'] == 'pppoe' %}selected{% endif %}>PPPoE</option>
-        </select>
-      </label>
+    <h3 class="section-title">编辑网络参数</h3>
+    {% if message %}<div id="network-message" class="message success">{{ message }}</div>{% endif %}
+    <form method="post" class="form-grid">
+      <div class="field-grid">
+        <label>SSID
+          <input id="ssid" name="ssid" value="{{ data['ssid'] }}" />
+        </label>
+        <label>无线密码
+          <input id="wifi-password" name="password" value="{{ data['password'] }}" />
+        </label>
+      </div>
+      <div class="field-grid">
+        <label>联网模式
+          <select id="mode" name="mode">
+            <option value="dhcp" {% if data['mode'] == 'dhcp' %}selected{% endif %}>DHCP</option>
+            <option value="pppoe" {% if data['mode'] == 'pppoe' %}selected{% endif %}>PPPoE</option>
+          </select>
+        </label>
+        <label>Wi‑Fi 信道
+          <select name="channel">
+            <option value="Auto" {% if data['channel'] == 'Auto' %}selected{% endif %}>Auto</option>
+            <option value="1" {% if data['channel'] == '1' %}selected{% endif %}>1</option>
+            <option value="6" {% if data['channel'] == '6' %}selected{% endif %}>6</option>
+            <option value="11" {% if data['channel'] == '11' %}selected{% endif %}>11</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-grid">
+        <label>访客 Wi‑Fi
+          <select name="guest_wifi">
+            <option value="enabled" {% if data['guest_wifi'] == 'enabled' %}selected{% endif %}>启用</option>
+            <option value="disabled" {% if data['guest_wifi'] == 'disabled' %}selected{% endif %}>禁用</option>
+          </select>
+        </label>
+      </div>
       <div class="actions">
         <button id="save-network" class="btn" type="submit">保存配置</button>
-        <a id="back-dashboard" class="ghost-link" href="{{ url_for('dashboard') }}">返回控制台</a>
+        <a id="back-dashboard" class="ghost-btn" href="{{ url_for('dashboard') }}">返回控制台</a>
       </div>
     </form>
   </div>
 
-  <aside class="panel settings-side">
-    <span class="eyebrow">Tips</span>
-    <h2 class="section-title">建议校验点</h2>
-    <ul class="list">
-      <li>保存前验证输入框默认值是否正确加载。</li>
-      <li>切换 DHCP / PPPoE 时验证下拉框选中状态。</li>
-      <li>提交后断言成功提示与回填数据保持一致。</li>
+  <aside class="panel side-col">
+    <span class="eyebrow">Summary</span>
+    <h3 class="section-title">当前生效配置</h3>
+    <div class="summary-grid">
+      <div class="summary-item"><span class="muted">SSID</span><strong>{{ data['ssid'] }}</strong></div>
+      <div class="summary-item"><span class="muted">模式</span><strong>{{ data['mode'] | upper }}</strong></div>
+      <div class="summary-item"><span class="muted">信道</span><strong>{{ data['channel'] }}</strong></div>
+      <div class="summary-item"><span class="muted">访客 Wi‑Fi</span><strong>{{ data['guest_wifi'] }}</strong></div>
+    </div>
+    <ul class="mini-list">
+      <li>保存后应断言成功提示可见。</li>
+      <li>可继续扩展参数校验与数据驱动测试。</li>
+      <li>推荐将更多真实配置项映射到此页面。</li>
     </ul>
   </aside>
 </section>
 """
 
 UPGRADE_CONTENT = """
-<section class="hero">
+<section class="page-header">
   <div>
     <span class="eyebrow">Firmware Delivery</span>
-    <h1 id="upgrade-title">固件升级</h1>
-    <p class="subtitle">上传升级包文件名并执行校验，模拟交付前的网关固件发布门禁流程。</p>
+    <h2 id="upgrade-title" class="page-title">固件升级</h2>
+    <p class="subtitle">模拟固件包发布前的门禁校验流程，保留升级状态提示和最近一次校验结果，便于 CI/CD 自动化回归。</p>
   </div>
-  <div class="hero-badge">
-    <span class="meta">升级状态</span>
-    <strong>{{ status | upper }}</strong>
+  <div class="header-side">
+    <div class="muted">当前校验状态</div>
+    <div style="margin-top: 10px;"><span class="status-pill {{ status }}">{{ status }}</span></div>
+    <div class="helper" style="margin-top: 12px;">最近更新时间：{{ upgrade['updated_at'] }}</div>
   </div>
 </section>
 
 <section class="layout">
-  <div class="panel upgrade-main">
+  <div class="panel main-col">
     <span class="eyebrow">Validation</span>
-    <h2 class="section-title">上传并校验升级包</h2>
+    <h3 class="section-title">上传并校验升级包</h3>
     {% if message %}
-      <div id="upgrade-message" class="message {% if status == 'rejected' %}error{% endif %}">{{ message }}</div>
+      <div id="upgrade-message" class="message {% if status == 'rejected' %}error{% else %}success{% endif %}">{{ message }}</div>
     {% endif %}
-    <form method="post" class="field-group">
+    <form method="post" class="form-grid">
       <label>固件文件名
-        <input id="firmware-file" name="filename" placeholder="例如：cpe_gateway_v2.1.0.bin" />
+        <input id="firmware-file" name="filename" value="{{ upgrade['last_filename'] or '' }}" placeholder="例如：cpe_gateway_v2.1.0.bin" />
       </label>
       <div class="actions">
         <button id="upload-btn" class="btn" type="submit">上传并校验</button>
-        <a id="back-dashboard" class="ghost-link" href="{{ url_for('dashboard') }}">返回控制台</a>
+        <a id="back-dashboard" class="ghost-btn" href="{{ url_for('dashboard') }}">返回控制台</a>
       </div>
     </form>
-    <div id="upgrade-status" class="status-chip {{ status }}">状态：<strong>{{ status }}</strong></div>
+    <div id="upgrade-status" style="margin-top: 18px;"><span class="status-pill {{ status }}">状态：{{ status }}</span></div>
   </div>
 
-  <aside class="panel upgrade-side">
-    <span class="eyebrow">Policy</span>
-    <h2 class="section-title">发布规则</h2>
-    <ul class="list">
-      <li>仅允许 `.bin` 后缀的固件文件通过基础校验。</li>
-      <li>校验成功后可在 CI 中继续执行自动化回归测试。</li>
-      <li>校验失败时应阻断发布并通知相关研发人员。</li>
+  <aside class="panel side-col">
+    <span class="eyebrow">Release Gate</span>
+    <h3 class="section-title">校验策略</h3>
+    <div class="summary-grid">
+      <div class="summary-item"><span class="muted">最近固件</span><strong>{{ upgrade['last_filename'] }}</strong></div>
+      <div class="summary-item"><span class="muted">最近结果</span><strong>{{ upgrade['last_result'] }}</strong></div>
+    </div>
+    <ul class="mini-list">
+      <li>仅允许 `.bin` 作为固件包后缀。</li>
+      <li>校验通过后可继续执行 UI 自动化回归。</li>
+      <li>失败时应阻断发布并回传报告。</li>
+    </ul>
+  </aside>
+</section>
+"""
+
+DIAGNOSTICS_CONTENT = """
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Diagnostics</span>
+    <h2 class="page-title">运行诊断</h2>
+    <p class="subtitle">对网关基础连通性、DNS 解析和云端服务状态进行快速检查，可作为持续交付前的环境健康验证页面。</p>
+    <div class="nav">
+      <a class="nav-link" href="{{ url_for('dashboard') }}">返回控制台</a>
+      <a class="nav-link" href="{{ url_for('network') }}">网络设置</a>
+      <a class="nav-link" href="{{ url_for('upgrade') }}">固件升级</a>
+    </div>
+  </div>
+  <div class="header-side">
+    <div class="muted">最近诊断时间</div>
+    <div style="margin-top: 10px; font-weight: 800;">{{ diagnostics['last_run'] }}</div>
+  </div>
+</section>
+
+<section class="layout">
+  <div class="panel main-col">
+    <span class="eyebrow">Health Check</span>
+    <h3 class="section-title">关键诊断结果</h3>
+    {% if message %}<div class="message success">{{ message }}</div>{% endif %}
+    <div class="grid-2">
+      <div class="tile"><h4 class="mini-title">网关 Ping</h4><p>{{ diagnostics['gateway_ping'] }}</p></div>
+      <div class="tile"><h4 class="mini-title">DNS 解析</h4><p>{{ diagnostics['dns_resolution'] }}</p></div>
+      <div class="tile"><h4 class="mini-title">云端连接</h4><p>{{ diagnostics['cloud_connectivity'] }}</p></div>
+      <div class="tile"><h4 class="mini-title">丢包率</h4><p>{{ diagnostics['packet_loss'] }}</p></div>
+    </div>
+    <form method="post" style="margin-top: 22px;">
+      <button class="btn" type="submit">重新执行诊断</button>
+    </form>
+  </div>
+
+  <aside class="panel side-col">
+    <span class="eyebrow">Use Cases</span>
+    <h3 class="section-title">适用场景</h3>
+    <ul class="mini-list">
+      <li>新固件部署后进行环境连通性确认。</li>
+      <li>在 UI 自动化执行前检查测试目标是否可用。</li>
+      <li>为 Jenkins/Allure 报告补充健康检查背景信息。</li>
     </ul>
   </aside>
 </section>
 """
 
 
-def render_page(title: str, content: str, **context):
-    return render_template_string(BASE_TEMPLATE, title=title, content=content, **context)
+def render_page(title: str, content_template: str, *, show_nav: bool = True, **context):
+    rendered_content = render_template_string(content_template, **context)
+    return render_template_string(
+        BASE_TEMPLATE,
+        title=title,
+        content=rendered_content,
+        show_nav=show_nav,
+        username=session.get('username', '未登录'),
+    )
+
 
 
 def require_login():
@@ -626,7 +923,7 @@ def login():
             session['username'] = username
             return redirect(url_for('dashboard'))
         error = '用户名或密码错误'
-    return render_page('CPE 登录', LOGIN_CONTENT, error=error)
+    return render_page('CPE 登录', LOGIN_CONTENT, show_nav=False, error=error)
 
 
 @app.route('/dashboard', methods=['GET'])
@@ -634,7 +931,15 @@ def dashboard():
     guard = require_login()
     if guard:
         return guard
-    return render_page('控制台', DASHBOARD_CONTENT, username=session['username'])
+    return render_page(
+        '控制台',
+        DASHBOARD_CONTENT,
+        username=session['username'],
+        system=STATE['system'],
+        upgrade=STATE['upgrade'],
+        clients=STATE['clients'],
+        activities=STATE['activities'],
+    )
 
 
 @app.route('/network', methods=['GET', 'POST'])
@@ -645,11 +950,21 @@ def network():
 
     message = None
     if request.method == 'POST':
-        STATE['network'] = {
-            'ssid': request.form.get('ssid', '').strip(),
-            'password': request.form.get('password', '').strip(),
-            'mode': request.form.get('mode', 'dhcp').strip(),
-        }
+        STATE['network'].update(
+            {
+                'ssid': request.form.get('ssid', '').strip(),
+                'password': request.form.get('password', '').strip(),
+                'mode': request.form.get('mode', 'dhcp').strip(),
+                'channel': request.form.get('channel', 'Auto').strip(),
+                'guest_wifi': request.form.get('guest_wifi', 'enabled').strip(),
+                'last_saved': now_text(),
+            }
+        )
+        STATE['activities'].insert(
+            0,
+            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '网络参数已更新', 'detail': f"SSID 已更新为 {STATE['network']['ssid']}，模式为 {STATE['network']['mode'].upper()}"},
+        )
+        STATE['activities'] = STATE['activities'][:5]
         message = '网络配置已保存'
     return render_page('网络设置', NETWORK_CONTENT, data=STATE['network'], message=message)
 
@@ -663,14 +978,48 @@ def upgrade():
     message = None
     if request.method == 'POST':
         filename = request.form.get('filename', '').strip()
+        STATE['upgrade']['last_filename'] = filename
+        STATE['upgrade']['updated_at'] = now_text()
         if not filename.endswith('.bin'):
             STATE['upgrade']['status'] = 'rejected'
+            STATE['upgrade']['last_result'] = '文件后缀不合法，发布已阻断'
             message = '仅允许上传 .bin 固件文件'
         else:
-            STATE['upgrade']['last_filename'] = filename
             STATE['upgrade']['status'] = 'validated'
-            message = f'固件 {filename} 校验通过，允许发布'
-    return render_page('固件升级', UPGRADE_CONTENT, status=STATE['upgrade']['status'], message=message)
+            STATE['upgrade']['last_result'] = f'固件 {filename} 校验通过，允许发布'
+            message = STATE['upgrade']['last_result']
+        STATE['activities'].insert(
+            0,
+            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '执行固件校验', 'detail': STATE['upgrade']['last_result']},
+        )
+        STATE['activities'] = STATE['activities'][:5]
+    return render_page('固件升级', UPGRADE_CONTENT, status=STATE['upgrade']['status'], message=message, upgrade=STATE['upgrade'])
+
+
+@app.route('/diagnostics', methods=['GET', 'POST'])
+def diagnostics():
+    guard = require_login()
+    if guard:
+        return guard
+
+    message = None
+    if request.method == 'POST':
+        STATE['diagnostics'].update(
+            {
+                'last_run': now_text(),
+                'gateway_ping': '9 ms',
+                'dns_resolution': '正常',
+                'cloud_connectivity': '正常',
+                'packet_loss': '0%',
+            }
+        )
+        STATE['activities'].insert(
+            0,
+            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '重新执行运行诊断', 'detail': '网络连通性、DNS 与云端访问状态均正常'},
+        )
+        STATE['activities'] = STATE['activities'][:5]
+        message = '运行诊断已完成，当前网络环境健康。'
+    return render_page('运行诊断', DIAGNOSTICS_CONTENT, diagnostics=STATE['diagnostics'], message=message)
 
 
 @app.route('/logout', methods=['GET'])
