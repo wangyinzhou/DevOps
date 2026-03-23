@@ -1,59 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime
+from pathlib import Path
 
-from flask import Flask, redirect, render_template_string, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
+
+from app.repository import StateRepository
+from app.services import GatewayService
 
 app = Flask(__name__)
 app.secret_key = 'devops-demo-secret'
 
-
-def now_text() -> str:
-    return datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
-
-
-STATE = {
-    'network': {
-        'ssid': 'CPE-5G',
-        'password': 'ChangeMe123',
-        'mode': 'dhcp',
-        'channel': 'Auto',
-        'guest_wifi': 'enabled',
-        'last_saved': '2026-03-20 10:00 UTC',
-    },
-    'upgrade': {
-        'last_filename': 'cpe_gateway_v2.0.3.bin',
-        'status': 'validated',
-        'last_result': '上一版固件已通过发布前校验',
-        'updated_at': '2026-03-21 08:30 UTC',
-    },
-    'system': {
-        'device_model': 'CPE-X3000',
-        'firmware_version': 'v2.0.3',
-        'uptime': '14 days',
-        'wan_status': 'Online',
-        'lan_clients': 18,
-        'cpu_usage': '24%',
-        'memory_usage': '58%',
-    },
-    'clients': [
-        {'name': 'Office-Laptop', 'ip': '192.168.1.12', 'band': '5GHz', 'quality': 'Excellent'},
-        {'name': 'Meeting-Room-TV', 'ip': '192.168.1.28', 'band': '2.4GHz', 'quality': 'Good'},
-        {'name': 'QA-Phone', 'ip': '192.168.1.41', 'band': '5GHz', 'quality': 'Excellent'},
-    ],
-    'activities': [
-        {'time': '09:12', 'event': '自动化冒烟测试通过', 'detail': '登录、网络配置、升级页校验全部成功'},
-        {'time': '08:40', 'event': '部署新测试环境', 'detail': 'Docker 测试容器重新初始化完成'},
-        {'time': '07:55', 'event': '发现新固件包', 'detail': '等待执行升级前门禁校验'},
-    ],
-    'diagnostics': {
-        'last_run': '2026-03-21 09:15 UTC',
-        'gateway_ping': '12 ms',
-        'dns_resolution': '正常',
-        'cloud_connectivity': '正常',
-        'packet_loss': '0%',
-    },
-}
+repository = StateRepository(Path(__file__).with_name('data') / 'state.json')
+service = GatewayService(repository)
 
 BASE_TEMPLATE = """
 <!doctype html>
@@ -931,15 +889,7 @@ def dashboard():
     guard = require_login()
     if guard:
         return guard
-    return render_page(
-        '控制台',
-        DASHBOARD_CONTENT,
-        username=session['username'],
-        system=STATE['system'],
-        upgrade=STATE['upgrade'],
-        clients=STATE['clients'],
-        activities=STATE['activities'],
-    )
+    return render_page('控制台', DASHBOARD_CONTENT, username=session['username'], **service.dashboard_context())
 
 
 @app.route('/network', methods=['GET', 'POST'])
@@ -950,23 +900,11 @@ def network():
 
     message = None
     if request.method == 'POST':
-        STATE['network'].update(
-            {
-                'ssid': request.form.get('ssid', '').strip(),
-                'password': request.form.get('password', '').strip(),
-                'mode': request.form.get('mode', 'dhcp').strip(),
-                'channel': request.form.get('channel', 'Auto').strip(),
-                'guest_wifi': request.form.get('guest_wifi', 'enabled').strip(),
-                'last_saved': now_text(),
-            }
-        )
-        STATE['activities'].insert(
-            0,
-            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '网络参数已更新', 'detail': f"SSID 已更新为 {STATE['network']['ssid']}，模式为 {STATE['network']['mode'].upper()}"},
-        )
-        STATE['activities'] = STATE['activities'][:5]
-        message = '网络配置已保存'
-    return render_page('网络设置', NETWORK_CONTENT, data=STATE['network'], message=message)
+        result = service.update_network(request.form.to_dict())
+        message = result['message']
+
+    state = service.snapshot()
+    return render_page('网络设置', NETWORK_CONTENT, data=state['network'], message=message)
 
 
 @app.route('/upgrade', methods=['GET', 'POST'])
@@ -977,23 +915,11 @@ def upgrade():
 
     message = None
     if request.method == 'POST':
-        filename = request.form.get('filename', '').strip()
-        STATE['upgrade']['last_filename'] = filename
-        STATE['upgrade']['updated_at'] = now_text()
-        if not filename.endswith('.bin'):
-            STATE['upgrade']['status'] = 'rejected'
-            STATE['upgrade']['last_result'] = '文件后缀不合法，发布已阻断'
-            message = '仅允许上传 .bin 固件文件'
-        else:
-            STATE['upgrade']['status'] = 'validated'
-            STATE['upgrade']['last_result'] = f'固件 {filename} 校验通过，允许发布'
-            message = STATE['upgrade']['last_result']
-        STATE['activities'].insert(
-            0,
-            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '执行固件校验', 'detail': STATE['upgrade']['last_result']},
-        )
-        STATE['activities'] = STATE['activities'][:5]
-    return render_page('固件升级', UPGRADE_CONTENT, status=STATE['upgrade']['status'], message=message, upgrade=STATE['upgrade'])
+        result = service.register_firmware(request.form.get('filename', ''))
+        message = result['message']
+
+    state = service.snapshot()
+    return render_page('固件升级', UPGRADE_CONTENT, status=state['upgrade']['status'], message=message, upgrade=state['upgrade'])
 
 
 @app.route('/diagnostics', methods=['GET', 'POST'])
@@ -1004,22 +930,51 @@ def diagnostics():
 
     message = None
     if request.method == 'POST':
-        STATE['diagnostics'].update(
-            {
-                'last_run': now_text(),
-                'gateway_ping': '9 ms',
-                'dns_resolution': '正常',
-                'cloud_connectivity': '正常',
-                'packet_loss': '0%',
-            }
-        )
-        STATE['activities'].insert(
-            0,
-            {'time': datetime.utcnow().strftime('%H:%M'), 'event': '重新执行运行诊断', 'detail': '网络连通性、DNS 与云端访问状态均正常'},
-        )
-        STATE['activities'] = STATE['activities'][:5]
-        message = '运行诊断已完成，当前网络环境健康。'
-    return render_page('运行诊断', DIAGNOSTICS_CONTENT, diagnostics=STATE['diagnostics'], message=message)
+        message = service.run_diagnostics()['message']
+
+    state = service.snapshot()
+    return render_page('运行诊断', DIAGNOSTICS_CONTENT, diagnostics=state['diagnostics'], message=message)
+
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    return jsonify(service.health())
+
+
+@app.route('/api/dashboard', methods=['GET'])
+def api_dashboard():
+    return jsonify(service.dashboard_context())
+
+
+@app.route('/api/network', methods=['GET', 'POST'])
+def api_network():
+    if request.method == 'POST':
+        result = service.update_network(request.get_json(silent=True) or request.form.to_dict())
+        return jsonify({'message': result['message'], 'network': result['state']['network']})
+    return jsonify({'network': service.snapshot()['network']})
+
+
+@app.route('/api/upgrade', methods=['GET', 'POST'])
+def api_upgrade():
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or request.form.to_dict()
+        result = service.register_firmware(payload.get('filename', ''))
+        return jsonify({'message': result['message'], 'status': result['status'], 'upgrade': result['state']['upgrade']})
+    return jsonify({'upgrade': service.snapshot()['upgrade']})
+
+
+@app.route('/api/diagnostics', methods=['GET', 'POST'])
+def api_diagnostics():
+    if request.method == 'POST':
+        result = service.run_diagnostics()
+        return jsonify({'message': result['message'], 'diagnostics': result['state']['diagnostics']})
+    return jsonify({'diagnostics': service.snapshot()['diagnostics']})
+
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset():
+    state = repository.reset()
+    return jsonify({'message': '系统状态已重置为初始值', 'state': state})
 
 
 @app.route('/logout', methods=['GET'])
