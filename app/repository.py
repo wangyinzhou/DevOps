@@ -88,6 +88,52 @@ class StateRepository:
                     event TEXT NOT NULL,
                     detail TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS firmware_artifacts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_ref TEXT NOT NULL,
+                    local_path TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    md5 TEXT NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    notes TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS upgrade_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    artifact_id INTEGER NOT NULL,
+                    target_version TEXT NOT NULL,
+                    trigger_source TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    upload_ok INTEGER NOT NULL,
+                    trigger_ok INTEGER NOT NULL,
+                    online_ok INTEGER NOT NULL,
+                    api_check INTEGER NOT NULL,
+                    web_check INTEGER NOT NULL,
+                    duration_seconds REAL NOT NULL,
+                    failure_reason TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT NOT NULL,
+                    FOREIGN KEY(artifact_id) REFERENCES firmware_artifacts(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS experiment_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL,
+                    artifact_id INTEGER NOT NULL,
+                    coverage REAL NOT NULL,
+                    pass_rate REAL NOT NULL,
+                    flaky_rate REAL NOT NULL,
+                    duration_seconds REAL NOT NULL,
+                    failure_reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(job_id) REFERENCES upgrade_jobs(id),
+                    FOREIGN KEY(artifact_id) REFERENCES firmware_artifacts(id)
+                );
                 '''
             )
 
@@ -137,4 +183,102 @@ class StateRepository:
 
     def reset(self) -> dict[str, Any]:
         state = self._seed_state()
-        return self.save(state)
+        self.save(state)
+        with self._connect() as connection:
+            connection.execute('DELETE FROM firmware_artifacts')
+            connection.execute('DELETE FROM upgrade_jobs')
+            connection.execute('DELETE FROM experiment_runs')
+        return state
+
+    def create_firmware_artifact(self, record: dict[str, Any]) -> int:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                INSERT INTO firmware_artifacts(
+                    filename, version, source_type, source_ref, local_path, size_bytes, md5, sha256, created_at, notes
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    record['filename'],
+                    record['version'],
+                    record['source_type'],
+                    record['source_ref'],
+                    record['local_path'],
+                    record['size_bytes'],
+                    record['md5'],
+                    record['sha256'],
+                    record['created_at'],
+                    record['notes'],
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def list_firmware_artifacts(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            return [dict(row) for row in connection.execute('SELECT * FROM firmware_artifacts ORDER BY id DESC').fetchall()]
+
+    def get_firmware_artifact(self, artifact_id: int) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute('SELECT * FROM firmware_artifacts WHERE id = ?', (artifact_id,)).fetchone()
+            return dict(row) if row else None
+
+    def create_upgrade_job(self, record: dict[str, Any]) -> int:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                INSERT INTO upgrade_jobs(
+                    artifact_id, target_version, trigger_source, status, upload_ok, trigger_ok, online_ok,
+                    api_check, web_check, duration_seconds, failure_reason, started_at, finished_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    record['artifact_id'],
+                    record['target_version'],
+                    record['trigger_source'],
+                    record['status'],
+                    int(record['upload_ok']),
+                    int(record['trigger_ok']),
+                    int(record['online_ok']),
+                    int(record['api_check']),
+                    int(record['web_check']),
+                    record['duration_seconds'],
+                    record['failure_reason'],
+                    record['started_at'],
+                    record['finished_at'],
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def list_upgrade_jobs(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            return [dict(row) for row in connection.execute('SELECT * FROM upgrade_jobs ORDER BY id DESC').fetchall()]
+
+    def get_upgrade_job(self, job_id: int) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute('SELECT * FROM upgrade_jobs WHERE id = ?', (job_id,)).fetchone()
+            return dict(row) if row else None
+
+    def create_experiment_run(self, record: dict[str, Any]) -> int:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                INSERT INTO experiment_runs(
+                    job_id, artifact_id, coverage, pass_rate, flaky_rate, duration_seconds, failure_reason, created_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    record['job_id'],
+                    record['artifact_id'],
+                    record['coverage'],
+                    record['pass_rate'],
+                    record['flaky_rate'],
+                    record['duration_seconds'],
+                    record['failure_reason'],
+                    record['created_at'],
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def list_experiment_runs(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            return [dict(row) for row in connection.execute('SELECT * FROM experiment_runs ORDER BY id DESC').fetchall()]

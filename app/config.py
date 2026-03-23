@@ -13,6 +13,8 @@ class AppSettings:
     database_path: str = 'app/data/cpe_gateway.db'
     seed_path: str = 'app/data/state.json'
     api_prefix: str = '/api/v1'
+    artifact_dir: str = 'artifacts/firmware'
+    device_host: str = '192.168.1.1'
 
 
 def get_settings() -> AppSettings:
@@ -23,6 +25,8 @@ def get_settings() -> AppSettings:
         database_path=os.getenv('DATABASE_PATH', AppSettings.database_path),
         seed_path=os.getenv('SEED_PATH', AppSettings.seed_path),
         api_prefix=os.getenv('API_PREFIX', AppSettings.api_prefix),
+        artifact_dir=os.getenv('ARTIFACT_DIR', AppSettings.artifact_dir),
+        device_host=os.getenv('DEVICE_HOST', AppSettings.device_host),
     )
 
 
@@ -32,3 +36,7 @@ def resolve_database_path(settings: AppSettings) -> Path:
 
 def resolve_seed_path(settings: AppSettings) -> Path:
     return Path(settings.seed_path)
+
+
+def resolve_artifact_dir(settings: AppSettings) -> Path:
+    return Path(settings.artifact_dir)

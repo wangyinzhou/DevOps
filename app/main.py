@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
 
-from app.config import get_settings, resolve_database_path, resolve_seed_path
+from app.config import get_settings, resolve_artifact_dir, resolve_database_path, resolve_seed_path
 from app.repository import StateRepository
 from app.services import GatewayService
 
@@ -11,7 +11,7 @@ app = Flask(__name__)
 app.secret_key = settings.secret_key
 
 repository = StateRepository(resolve_database_path(settings), resolve_seed_path(settings))
-service = GatewayService(repository)
+service = GatewayService(repository, artifact_dir=resolve_artifact_dir(settings), device_host=settings.device_host)
 API_PREFIX = settings.api_prefix.rstrip('/')
 
 BASE_TEMPLATE = """
@@ -559,6 +559,9 @@ DASHBOARD_CONTENT = """
       <a id="nav-network" class="nav-link" href="{{ url_for('network') }}">网络设置</a>
       <a id="nav-upgrade" class="nav-link" href="{{ url_for('upgrade') }}">固件升级</a>
       <a id="nav-diagnostics" class="nav-link" href="{{ url_for('diagnostics') }}">运行诊断</a>
+      <a id="nav-artifacts" class="nav-link" href="{{ url_for('firmware_artifacts_page') }}">固件制品</a>
+      <a id="nav-jobs" class="nav-link" href="{{ url_for('upgrade_jobs_page') }}">升级任务</a>
+      <a id="nav-stats" class="nav-link" href="{{ url_for('experiment_stats_page') }}">实验统计</a>
       <a id="nav-logout" class="nav-link" href="{{ url_for('logout') }}">安全退出</a>
     </div>
   </div>
@@ -848,6 +851,153 @@ DIAGNOSTICS_CONTENT = """
 </section>
 """
 
+FIRMWARE_ARTIFACTS_CONTENT = """
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Firmware Artifacts</span>
+    <h2 class="page-title">固件制品管理</h2>
+    <p class="subtitle">支持上传/登记固件包，记录版本号、来源、制品路径以及 MD5/SHA256 指纹，为升级任务和可追溯性提供基础。</p>
+  </div>
+  <div class="header-side">
+    <div class="muted">制品总数</div>
+    <div style="margin-top: 10px; font-weight: 800; font-size: 28px;">{{ artifacts|length }}</div>
+  </div>
+</section>
+<section class="layout">
+  <div class="panel main-col">
+    {% if message %}<div class="message success">{{ message }}</div>{% endif %}
+    <span class="eyebrow">Register</span>
+    <h3 class="section-title">登记固件制品</h3>
+    <form method="post" class="form-grid">
+      <div class="field-grid">
+        <label>固件文件名<input name="filename" placeholder="cpe_gateway_v2.4.0.bin" /></label>
+        <label>来源类型
+          <select name="source_type">
+            <option value="upload">上传</option>
+            <option value="git">Git 提交</option>
+            <option value="path">制品路径</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-grid">
+        <label>来源标识<input name="source_ref" placeholder="git commit / 下载地址 / 仓库路径" /></label>
+        <label>本地制品路径（可选）<input name="local_path" placeholder="例如：C:/firmware/cpe_gateway_v2.4.0.bin" /></label>
+      </div>
+      <label>备注<input name="notes" placeholder="例如：来自品牌官网的回归测试固件" /></label>
+      <div class="actions"><button class="btn" type="submit">登记固件制品</button></div>
+    </form>
+  </div>
+  <aside class="panel side-col">
+    <span class="eyebrow">List</span>
+    <h3 class="section-title">已登记制品</h3>
+    <div class="timeline">
+      {% for artifact in artifacts %}
+        <div class="timeline-item">
+          <div class="timeline-title">{{ artifact['filename'] }}</div>
+          <div class="timeline-detail">版本：v{{ artifact['version'] }} ｜ 来源：{{ artifact['source_type'] }}</div>
+          <div class="timeline-detail">MD5：{{ artifact['md5'][:12] }}... ｜ SHA256：{{ artifact['sha256'][:16] }}...</div>
+        </div>
+      {% else %}
+        <div class="timeline-item"><div class="timeline-detail">暂无固件制品。</div></div>
+      {% endfor %}
+    </div>
+  </aside>
+</section>
+"""
+
+UPGRADE_JOBS_CONTENT = """
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Upgrade Jobs</span>
+    <h2 class="page-title">设备升级执行模块</h2>
+    <p class="subtitle">基于已登记的固件制品，模拟执行上传、触发升级、等待设备恢复在线，并完成 API + Web 联合验证。</p>
+  </div>
+  <div class="header-side">
+    <div class="muted">任务总数</div>
+    <div style="margin-top: 10px; font-weight: 800; font-size: 28px;">{{ jobs|length }}</div>
+  </div>
+</section>
+<section class="layout">
+  <div class="panel main-col">
+    {% if message %}<div class="message success">{{ message }}</div>{% endif %}
+    <span class="eyebrow">Execute</span>
+    <h3 class="section-title">触发升级任务</h3>
+    <form method="post" class="form-grid">
+      <div class="field-grid">
+        <label>选择固件制品
+          <select name="artifact_id">
+            {% for artifact in artifacts %}
+              <option value="{{ artifact['id'] }}">#{{ artifact['id'] }} - {{ artifact['filename'] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>触发来源<input name="trigger_source" value="git-pipeline" /></label>
+      </div>
+      <div class="actions"><button class="btn" type="submit">执行升级任务</button></div>
+    </form>
+  </div>
+  <aside class="panel side-col">
+    <span class="eyebrow">History</span>
+    <h3 class="section-title">最近升级任务</h3>
+    <div class="timeline">
+      {% for job in jobs %}
+        <div class="timeline-item">
+          <div class="timeline-title">任务 #{{ job['id'] }} ｜ 状态：{{ job['status'] }}</div>
+          <div class="timeline-detail">目标版本：v{{ job['target_version'] }} ｜ API 检查：{{ job['api_check'] }} ｜ Web 检查：{{ job['web_check'] }}</div>
+          <div class="timeline-detail">耗时：{{ job['duration_seconds'] }}s ｜ 失败原因：{{ job['failure_reason'] or '无' }}</div>
+        </div>
+      {% else %}
+        <div class="timeline-item"><div class="timeline-detail">暂无升级任务。</div></div>
+      {% endfor %}
+    </div>
+  </aside>
+</section>
+"""
+
+EXPERIMENT_STATS_CONTENT = """
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Experiment Stats</span>
+    <h2 class="page-title">实验统计模块</h2>
+    <p class="subtitle">记录每轮升级回归的耗时、通过率、失败原因、覆盖率和稳定性指标，用于支撑论文中的对比与分析。</p>
+  </div>
+  <div class="header-side">
+    <div class="muted">实验轮次</div>
+    <div style="margin-top: 10px; font-weight: 800; font-size: 28px;">{{ summary['count'] }}</div>
+  </div>
+</section>
+<section class="stats-grid">
+  <div class="stat-card"><div class="stat-label">平均覆盖率</div><div class="stat-value">{{ summary['avg_coverage'] }}%</div></div>
+  <div class="stat-card"><div class="stat-label">平均通过率</div><div class="stat-value">{{ summary['avg_pass_rate'] }}%</div></div>
+  <div class="stat-card"><div class="stat-label">平均 Flaky 率</div><div class="stat-value">{{ summary['avg_flaky_rate'] }}%</div></div>
+  <div class="stat-card"><div class="stat-label">平均耗时</div><div class="stat-value">{{ summary['avg_duration'] }}s</div></div>
+</section>
+<section class="layout" style="margin-top: 22px;">
+  <div class="panel full-col">
+    <span class="eyebrow">Runs</span>
+    <h3 class="section-title">实验记录</h3>
+    <table class="table">
+      <thead><tr><th>ID</th><th>任务</th><th>制品</th><th>覆盖率</th><th>通过率</th><th>Flaky率</th><th>耗时</th><th>失败原因</th></tr></thead>
+      <tbody>
+        {% for run in runs %}
+        <tr>
+          <td>{{ run['id'] }}</td>
+          <td>#{{ run['job_id'] }}</td>
+          <td>#{{ run['artifact_id'] }}</td>
+          <td>{{ run['coverage'] }}%</td>
+          <td>{{ run['pass_rate'] }}%</td>
+          <td>{{ run['flaky_rate'] }}%</td>
+          <td>{{ run['duration_seconds'] }}s</td>
+          <td>{{ run['failure_reason'] or '无' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+"""
+
+
 
 def render_page(title: str, content_template: str, *, show_nav: bool = True, **context):
     rendered_content = render_template_string(content_template, **context)
@@ -937,6 +1087,50 @@ def diagnostics():
     return render_page('运行诊断', DIAGNOSTICS_CONTENT, diagnostics=state['diagnostics'], message=message)
 
 
+@app.route('/artifacts', methods=['GET', 'POST'])
+def firmware_artifacts_page():
+    guard = require_login()
+    if guard:
+        return guard
+
+    message = None
+    if request.method == 'POST':
+        result = service.register_firmware_artifact(
+            filename=request.form.get('filename', '').strip(),
+            source_type=request.form.get('source_type', 'upload').strip(),
+            source_ref=request.form.get('source_ref', '').strip(),
+            local_path=request.form.get('local_path', '').strip() or None,
+            notes=request.form.get('notes', '').strip(),
+        )
+        message = result['message']
+
+    return render_page('固件制品', FIRMWARE_ARTIFACTS_CONTENT, artifacts=service.list_firmware_artifacts(), message=message)
+
+
+@app.route('/jobs', methods=['GET', 'POST'])
+def upgrade_jobs_page():
+    guard = require_login()
+    if guard:
+        return guard
+
+    message = None
+    if request.method == 'POST':
+        artifact_id = int(request.form.get('artifact_id', '0') or 0)
+        result = service.execute_upgrade_job(artifact_id, trigger_source=request.form.get('trigger_source', 'manual'))
+        message = result['message']
+
+    return render_page('升级任务', UPGRADE_JOBS_CONTENT, artifacts=service.list_firmware_artifacts(), jobs=service.list_upgrade_jobs(), message=message)
+
+
+@app.route('/stats', methods=['GET'])
+def experiment_stats_page():
+    guard = require_login()
+    if guard:
+        return guard
+
+    return render_page('实验统计', EXPERIMENT_STATS_CONTENT, runs=service.list_experiment_runs(), summary=service.experiment_summary())
+
+
 @app.route(f'{API_PREFIX}/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 def api_health():
@@ -974,6 +1168,37 @@ def api_network_import():
     result = service.import_network_profile(payload)
     status_code = 200 if result['ok'] else 400
     return jsonify({'message': result['message'], 'network': result['state']['network']}), status_code
+
+
+@app.route(f'{API_PREFIX}/artifacts', methods=['GET', 'POST'])
+def api_artifacts():
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or request.form.to_dict()
+        result = service.register_firmware_artifact(
+            filename=payload.get('filename', ''),
+            source_type=payload.get('source_type', 'upload'),
+            source_ref=payload.get('source_ref', ''),
+            local_path=payload.get('local_path') or None,
+            notes=payload.get('notes', ''),
+        )
+        status_code = 200 if result['ok'] else 400
+        return jsonify(result), status_code
+    return jsonify({'artifacts': service.list_firmware_artifacts()})
+
+
+@app.route(f'{API_PREFIX}/upgrade-jobs', methods=['GET', 'POST'])
+def api_upgrade_jobs():
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or request.form.to_dict()
+        result = service.execute_upgrade_job(int(payload.get('artifact_id', 0)), trigger_source=payload.get('trigger_source', 'api'))
+        status_code = 200 if result['ok'] else 400
+        return jsonify(result), status_code
+    return jsonify({'jobs': service.list_upgrade_jobs()})
+
+
+@app.route(f'{API_PREFIX}/experiments', methods=['GET'])
+def api_experiments():
+    return jsonify({'summary': service.experiment_summary(), 'runs': service.list_experiment_runs()})
 
 
 @app.route(f'{API_PREFIX}/upgrade', methods=['GET', 'POST'])
