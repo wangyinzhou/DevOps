@@ -119,10 +119,27 @@ docker compose up --build --abort-on-container-exit test-runner
 
 - **持久化状态存储**：通过 `app/repository.py` 和 `app/data/state.json` 管理设备状态，而不是把所有页面内容写死在视图函数里。
 - **业务服务层**：通过 `app/services.py` 封装网络配置保存、固件命名规范校验、运行诊断、活动记录等业务逻辑。
-- **可集成 API**：新增 `/api/health`、`/api/dashboard`、`/api/network`、`/api/upgrade`、`/api/diagnostics`、`/api/reset` 等接口，便于后续接入前端、真实设备代理层或自动化平台。
+- **可集成 API**：新增 `/api/v1/health`、`/api/v1/readiness`、`/api/v1/dashboard`、`/api/v1/network`、`/api/v1/network/export`、`/api/v1/network/import`、`/api/v1/upgrade`、`/api/v1/diagnostics`、`/api/v1/reset` 等接口，便于后续接入前端、真实设备代理层或自动化平台。
 - **可替换真实设备适配层**：当前 JSON 存储可作为开发/测试阶段的设备代理，后续只需把服务层的数据读写替换为真实设备 API、SSH/串口指令或厂商 SDK，即可演进为实际项目。
 
 这意味着它现在已经具备了“UI + 服务层 + 状态存储 + API + 自动化测试骨架”的基本形态，后续扩展不需要推翻重来。
+
+
+## 进一步接近生产项目的增强
+
+本轮又补充了几项更贴近生产部署的能力：
+
+- **环境化配置**：新增 `app/config.py`，管理员账号、密码、状态文件路径、API 前缀都可通过环境变量配置。
+- **版本化 API**：在兼容旧 `/api/*` 的同时，新增 `/api/v1/*` 路由，便于后续接口演进。
+- **就绪检查**：新增 `/api/v1/readiness`，用于给反向代理、容器编排和发布流水线做应用就绪判断。
+- **配置模板导入导出**：新增网络配置导入/导出接口，可作为后续“配置备份恢复”能力的基础。
+
+推荐下一阶段继续接入：
+
+1. SQLite / PostgreSQL 替代 JSON 状态存储。
+2. 真正的用户体系与权限控制。
+3. 设备适配层（HTTP / SSH / Telnet / 串口）。
+4. 更完整的审计日志、配置备份与发布审批流。
 
 ## 默认登录账号
 

@@ -67,3 +67,25 @@ def test_run_diagnostics_updates_state(tmp_path):
     assert '环境健康' in result['message']
     assert state['diagnostics']['gateway_ping'] == '9 ms'
     assert state['activities'][0]['event'] == '重新执行运行诊断'
+
+
+
+def test_export_network_profile_contains_metadata(tmp_path):
+    service, _ = build_service(tmp_path)
+
+    result = service.export_network_profile()
+
+    assert 'exported_at' in result
+    assert result['network']['ssid'] == 'CPE-5G'
+    assert result['system']['device_model'] == 'CPE-X3000'
+
+
+def test_import_network_profile_validates_required_fields(tmp_path):
+    service, repository = build_service(tmp_path)
+
+    result = service.import_network_profile({'ssid': 'OnlyName'})
+
+    state = repository.load()
+    assert result['ok'] is False
+    assert '缺少必要字段' in result['message']
+    assert state['network']['ssid'] == 'CPE-5G'

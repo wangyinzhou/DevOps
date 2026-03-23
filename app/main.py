@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
 
+from app.config import get_settings, resolve_state_path
 from app.repository import StateRepository
 from app.services import GatewayService
 
+settings = get_settings()
 app = Flask(__name__)
-app.secret_key = 'devops-demo-secret'
+app.secret_key = settings.secret_key
 
-repository = StateRepository(Path(__file__).with_name('data') / 'state.json')
+repository = StateRepository(resolve_state_path(settings))
 service = GatewayService(repository)
+API_PREFIX = settings.api_prefix.rstrip('/')
 
 BASE_TEMPLATE = """
 <!doctype html>
@@ -537,11 +538,11 @@ LOGIN_CONTENT = """
     <div class="summary-grid">
       <div class="summary-item">
         <span class="muted">默认账号</span>
-        <strong>admin</strong>
+        <strong>{{ default_username }}</strong>
       </div>
       <div class="summary-item">
         <span class="muted">默认密码</span>
-        <strong>admin123</strong>
+        <strong>{{ default_password }}</strong>
       </div>
     </div>
   </div>
@@ -877,11 +878,11 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
-        if username == 'admin' and password == 'admin123':
+        if username == settings.admin_username and password == settings.admin_password:
             session['username'] = username
             return redirect(url_for('dashboard'))
         error = '用户名或密码错误'
-    return render_page('CPE 登录', LOGIN_CONTENT, show_nav=False, error=error)
+    return render_page('CPE 登录', LOGIN_CONTENT, show_nav=False, error=error, default_username=settings.admin_username, default_password=settings.admin_password)
 
 
 @app.route('/dashboard', methods=['GET'])
@@ -936,16 +937,24 @@ def diagnostics():
     return render_page('运行诊断', DIAGNOSTICS_CONTENT, diagnostics=state['diagnostics'], message=message)
 
 
+@app.route(f'{API_PREFIX}/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 def api_health():
     return jsonify(service.health())
 
 
+@app.route(f'{API_PREFIX}/readiness', methods=['GET'])
+def api_readiness():
+    return jsonify(service.readiness())
+
+
+@app.route(f'{API_PREFIX}/dashboard', methods=['GET'])
 @app.route('/api/dashboard', methods=['GET'])
 def api_dashboard():
     return jsonify(service.dashboard_context())
 
 
+@app.route(f'{API_PREFIX}/network', methods=['GET', 'POST'])
 @app.route('/api/network', methods=['GET', 'POST'])
 def api_network():
     if request.method == 'POST':
@@ -954,6 +963,20 @@ def api_network():
     return jsonify({'network': service.snapshot()['network']})
 
 
+@app.route(f'{API_PREFIX}/network/export', methods=['GET'])
+def api_network_export():
+    return jsonify(service.export_network_profile())
+
+
+@app.route(f'{API_PREFIX}/network/import', methods=['POST'])
+def api_network_import():
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    result = service.import_network_profile(payload)
+    status_code = 200 if result['ok'] else 400
+    return jsonify({'message': result['message'], 'network': result['state']['network']}), status_code
+
+
+@app.route(f'{API_PREFIX}/upgrade', methods=['GET', 'POST'])
 @app.route('/api/upgrade', methods=['GET', 'POST'])
 def api_upgrade():
     if request.method == 'POST':
@@ -963,6 +986,7 @@ def api_upgrade():
     return jsonify({'upgrade': service.snapshot()['upgrade']})
 
 
+@app.route(f'{API_PREFIX}/diagnostics', methods=['GET', 'POST'])
 @app.route('/api/diagnostics', methods=['GET', 'POST'])
 def api_diagnostics():
     if request.method == 'POST':
@@ -971,6 +995,7 @@ def api_diagnostics():
     return jsonify({'diagnostics': service.snapshot()['diagnostics']})
 
 
+@app.route(f'{API_PREFIX}/reset', methods=['POST'])
 @app.route('/api/reset', methods=['POST'])
 def api_reset():
     state = repository.reset()

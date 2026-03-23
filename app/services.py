@@ -113,6 +113,33 @@ class GatewayService:
         self.repository.save(state)
         return {'state': state, 'message': '运行诊断已完成，当前网络环境健康。'}
 
+    def export_network_profile(self) -> dict[str, Any]:
+        state = self.snapshot()
+        return {
+            'exported_at': self.now_text(),
+            'network': state['network'],
+            'system': {
+                'device_model': state['system']['device_model'],
+                'firmware_version': state['system']['firmware_version'],
+            },
+        }
+
+    def import_network_profile(self, payload: dict[str, str]) -> dict[str, Any]:
+        required_fields = {'ssid', 'password', 'mode', 'channel', 'guest_wifi'}
+        missing_fields = sorted(field for field in required_fields if not payload.get(field))
+        if missing_fields:
+            return {
+                'ok': False,
+                'message': f"缺少必要字段：{', '.join(missing_fields)}",
+                'state': self.snapshot(),
+            }
+
+        result = self.update_network(payload)
+        state = result['state']
+        self.append_activity(state, '导入网络配置', '已通过 API 导入网络配置模板')
+        self.repository.save(state)
+        return {'ok': True, 'message': '网络配置模板已导入', 'state': state}
+
     def health(self) -> dict[str, Any]:
         state = self.snapshot()
         return {
@@ -121,4 +148,15 @@ class GatewayService:
             'firmware_version': state['system']['firmware_version'],
             'wan_status': state['system']['wan_status'],
             'updated_at': state['upgrade']['updated_at'],
+        }
+
+    def readiness(self) -> dict[str, Any]:
+        state = self.snapshot()
+        return {
+            'status': 'ready' if state['system']['wan_status'].lower() == 'online' else 'degraded',
+            'checks': {
+                'state_store': 'ok',
+                'wan_status': state['system']['wan_status'],
+                'diagnostics_last_run': state['diagnostics']['last_run'],
+            },
         }
