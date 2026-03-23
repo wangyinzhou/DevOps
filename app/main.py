@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
 
-from app.config import get_settings, resolve_state_path
+from app.config import get_settings, resolve_database_path, resolve_seed_path
 from app.repository import StateRepository
 from app.services import GatewayService
 
@@ -10,7 +10,7 @@ settings = get_settings()
 app = Flask(__name__)
 app.secret_key = settings.secret_key
 
-repository = StateRepository(resolve_state_path(settings))
+repository = StateRepository(resolve_database_path(settings), resolve_seed_path(settings))
 service = GatewayService(repository)
 API_PREFIX = settings.api_prefix.rstrip('/')
 

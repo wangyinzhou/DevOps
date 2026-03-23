@@ -8,7 +8,7 @@ from app.services import GatewayService
 
 
 def build_service(tmp_path: Path) -> tuple[GatewayService, StateRepository]:
-    repository = StateRepository(tmp_path / 'state.json')
+    repository = StateRepository(tmp_path / 'state.db')
     repository.save(json.loads(json.dumps(DEFAULT_STATE)))
     return GatewayService(repository), repository
 

@@ -4,7 +4,7 @@ from app.repository import DEFAULT_STATE, StateRepository
 
 
 def test_repository_initializes_default_state(tmp_path):
-    repository = StateRepository(tmp_path / 'state.json')
+    repository = StateRepository(tmp_path / 'state.db')
 
     state = repository.load()
 
@@ -13,7 +13,7 @@ def test_repository_initializes_default_state(tmp_path):
 
 
 def test_repository_reset_restores_defaults(tmp_path):
-    repository = StateRepository(tmp_path / 'state.json')
+    repository = StateRepository(tmp_path / 'state.db')
     state = repository.load()
     state['network']['ssid'] = 'Changed'
     repository.save(state)

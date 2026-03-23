@@ -117,7 +117,7 @@ docker compose up --build --abort-on-container-exit test-runner
 
 当前项目已经不只是静态演示页面，而是增加了更接近真实项目落地的后端结构：
 
-- **持久化状态存储**：通过 `app/repository.py` 和 `app/data/state.json` 管理设备状态，而不是把所有页面内容写死在视图函数里。
+- **持久化状态存储**：通过 `app/repository.py` 使用 SQLite 管理设备状态，并以 `app/data/state.json` 作为初始化种子数据，而不是把所有页面内容写死在视图函数里。
 - **业务服务层**：通过 `app/services.py` 封装网络配置保存、固件命名规范校验、运行诊断、活动记录等业务逻辑。
 - **可集成 API**：新增 `/api/v1/health`、`/api/v1/readiness`、`/api/v1/dashboard`、`/api/v1/network`、`/api/v1/network/export`、`/api/v1/network/import`、`/api/v1/upgrade`、`/api/v1/diagnostics`、`/api/v1/reset` 等接口，便于后续接入前端、真实设备代理层或自动化平台。
 - **可替换真实设备适配层**：当前 JSON 存储可作为开发/测试阶段的设备代理，后续只需把服务层的数据读写替换为真实设备 API、SSH/串口指令或厂商 SDK，即可演进为实际项目。
@@ -129,14 +129,14 @@ docker compose up --build --abort-on-container-exit test-runner
 
 本轮又补充了几项更贴近生产部署的能力：
 
-- **环境化配置**：新增 `app/config.py`，管理员账号、密码、状态文件路径、API 前缀都可通过环境变量配置。
+- **环境化配置**：新增 `app/config.py`，管理员账号、密码、SQLite 数据库路径、种子数据路径、API 前缀都可通过环境变量配置。
 - **版本化 API**：在兼容旧 `/api/*` 的同时，新增 `/api/v1/*` 路由，便于后续接口演进。
 - **就绪检查**：新增 `/api/v1/readiness`，用于给反向代理、容器编排和发布流水线做应用就绪判断。
 - **配置模板导入导出**：新增网络配置导入/导出接口，可作为后续“配置备份恢复”能力的基础。
 
 推荐下一阶段继续接入：
 
-1. SQLite / PostgreSQL 替代 JSON 状态存储。
+1. PostgreSQL 替代当前 SQLite，并引入 Alembic 迁移。
 2. 真正的用户体系与权限控制。
 3. 设备适配层（HTTP / SSH / Telnet / 串口）。
 4. 更完整的审计日志、配置备份与发布审批流。
@@ -157,6 +157,9 @@ docker compose up --build --abort-on-container-exit test-runner
 | `BROWSER` | `chrome` | 浏览器类型 |
 | `HEADLESS` | `true` | 是否启用无头模式 |
 | `SCREENSHOT_DIR` | `artifacts/screenshots` | 失败截图输出目录 |
+| `DATABASE_PATH` | `app/data/cpe_gateway.db` | SQLite 数据库文件路径 |
+| `SEED_PATH` | `app/data/state.json` | 数据初始化种子文件路径 |
+| `API_PREFIX` | `/api/v1` | 版本化 API 前缀 |
 
 ## 测试覆盖建议
 
