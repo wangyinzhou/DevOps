@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.config import AppSettings, get_settings, resolve_database_path, resolve_seed_path
 
 
@@ -42,5 +44,5 @@ def test_get_settings_reads_environment(monkeypatch):
 def test_resolve_database_and_seed_path_use_settings_values():
     settings = AppSettings(database_path='custom/app.db', seed_path='custom/state.json')
 
-    assert str(resolve_database_path(settings)) == 'custom/app.db'
-    assert str(resolve_seed_path(settings)) == 'custom/state.json'
+    assert resolve_database_path(settings) == Path('custom/app.db')
+    assert resolve_seed_path(settings) == Path('custom/state.json')

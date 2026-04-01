@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template_string, request, session, url_for
 
 from app.config import get_settings, resolve_artifact_dir, resolve_database_path, resolve_seed_path
 from app.device_adapter import create_device_adapter
@@ -1032,6 +1032,11 @@ def require_login():
 @app.route('/', methods=['GET'])
 def index():
     return redirect(url_for('login'))
+
+
+@app.route('/favicon.ico', methods=['GET'])
+def favicon():
+    return Response(status=204)
 
 
 @app.route('/login', methods=['GET', 'POST'])
