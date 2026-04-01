@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib.util
 import socket
 import subprocess
-import telnetlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -156,7 +155,13 @@ class TelnetDeviceAdapter(DeviceAdapter):
         self.password = password
         self.port = port
 
-    def _login(self) -> telnetlib.Telnet:
+    def _telnet_module(self):
+        if importlib.util.find_spec('telnetlib') is None:
+            raise RuntimeError('telnetlib is unavailable on this Python runtime; use SSH/HTTP/Serial adapter instead')
+        return importlib.import_module('telnetlib')
+
+    def _login(self):
+        telnetlib = self._telnet_module()
         tn = telnetlib.Telnet(self.device_host, self.port, timeout=10)
         tn.read_until(b'login: ', timeout=5)
         tn.write(self.username.encode() + b'\n')
