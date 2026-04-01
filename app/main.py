@@ -75,23 +75,31 @@ BASE_TEMPLATE = """
     a { color: inherit; }
 
     .shell {
-      width: min(1240px, calc(100% - 32px));
+      width: min(1320px, calc(100% - 32px));
       margin: 0 auto;
       padding: 24px 0 40px;
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 18px 22px;
+    .app-shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 18px;
+      padding: 22px 16px;
       border: 1px solid rgba(219, 228, 240, 0.95);
       border-radius: 22px;
-      background: rgba(255, 255, 255, 0.86);
+      background: rgba(255, 255, 255, 0.9);
       box-shadow: var(--shadow-lg);
       backdrop-filter: blur(12px);
-      margin-bottom: 20px;
+    }
+
+    .content-area {
+      min-width: 0;
     }
 
     .brand {
@@ -147,6 +155,13 @@ BASE_TEMPLATE = """
       background: var(--surface-strong);
       font-weight: 700;
       color: var(--primary);
+    }
+
+    .sidebar .user-chip {
+      width: 100%;
+      justify-content: center;
+      margin-top: 16px;
+      border-radius: 14px;
     }
 
     .page-header {
@@ -282,11 +297,16 @@ BASE_TEMPLATE = """
 
     .field-grid,
     .actions,
-    .nav,
     .summary-grid {
       display: flex;
       flex-wrap: wrap;
       gap: 14px;
+    }
+
+    .sidebar-nav {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
     }
 
     .form-grid {
@@ -354,6 +374,17 @@ BASE_TEMPLATE = """
       border-radius: 14px;
       background: white;
       font-weight: 700;
+    }
+
+    .sidebar-nav .nav-link {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .sidebar-nav .nav-link.active {
+      border-color: var(--primary-border);
+      background: var(--primary-soft);
+      color: var(--primary);
     }
 
     .btn:hover,
@@ -499,20 +530,28 @@ BASE_TEMPLATE = """
 
     @media (max-width: 720px) {
       .shell { width: min(100% - 20px, 1240px); }
-      .topbar,
       .page-header { padding: 20px; }
-      .topbar,
       .page-header { flex-direction: column; align-items: flex-start; }
       .stats-grid,
       .grid-2 { grid-template-columns: 1fr; }
       .login-wrap { min-height: auto; padding-top: 24px; }
     }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+    }
   </style>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell {% if show_nav %}app-shell{% endif %}">
     {% if show_nav %}
-      <section class="topbar">
+      <aside class="sidebar">
         <div class="brand">
           <div class="brand-badge">CPE</div>
           <div>
@@ -521,9 +560,23 @@ BASE_TEMPLATE = """
           </div>
         </div>
         <div class="user-chip">管理员：{{ username }}</div>
+        <nav class="sidebar-nav">
+          <a id="nav-dashboard" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">控制台</a>
+          <a id="nav-network" class="nav-link {% if active_page == 'network' %}active{% endif %}" href="{{ url_for('network') }}">网络设置</a>
+          <a id="nav-upgrade" class="nav-link {% if active_page == 'upgrade' %}active{% endif %}" href="{{ url_for('upgrade') }}">固件升级</a>
+          <a id="nav-diagnostics" class="nav-link {% if active_page == 'diagnostics' %}active{% endif %}" href="{{ url_for('diagnostics') }}">运行诊断</a>
+          <a id="nav-artifacts" class="nav-link {% if active_page == 'firmware_artifacts_page' %}active{% endif %}" href="{{ url_for('firmware_artifacts_page') }}">固件制品</a>
+          <a id="nav-jobs" class="nav-link {% if active_page == 'upgrade_jobs_page' %}active{% endif %}" href="{{ url_for('upgrade_jobs_page') }}">升级任务</a>
+          <a id="nav-stats" class="nav-link {% if active_page == 'experiment_stats_page' %}active{% endif %}" href="{{ url_for('experiment_stats_page') }}">实验统计</a>
+          <a id="nav-logout" class="nav-link" href="{{ url_for('logout') }}">安全退出</a>
+        </nav>
+      </aside>
+      <section class="content-area">
+        {{ content | safe }}
       </section>
+    {% else %}
+      {{ content | safe }}
     {% endif %}
-    {{ content | safe }}
   </main>
 </body>
 </html>
@@ -567,15 +620,6 @@ DASHBOARD_CONTENT = """
     <span class="eyebrow">Overview</span>
     <h2 id="dashboard-title" class="page-title">设备控制台</h2>
     <p id="welcome-banner" class="subtitle">欢迎您，{{ username }}。当前页面集中展示设备运行状态、连接终端、自动化测试结果以及常用运维入口。</p>
-    <div class="nav">
-      <a id="nav-network" class="nav-link" href="{{ url_for('network') }}">网络设置</a>
-      <a id="nav-upgrade" class="nav-link" href="{{ url_for('upgrade') }}">固件升级</a>
-      <a id="nav-diagnostics" class="nav-link" href="{{ url_for('diagnostics') }}">运行诊断</a>
-      <a id="nav-artifacts" class="nav-link" href="{{ url_for('firmware_artifacts_page') }}">固件制品</a>
-      <a id="nav-jobs" class="nav-link" href="{{ url_for('upgrade_jobs_page') }}">升级任务</a>
-      <a id="nav-stats" class="nav-link" href="{{ url_for('experiment_stats_page') }}">实验统计</a>
-      <a id="nav-logout" class="nav-link" href="{{ url_for('logout') }}">安全退出</a>
-    </div>
   </div>
   <div class="header-side">
     <div class="muted">WAN 状态</div>
@@ -823,11 +867,6 @@ DIAGNOSTICS_CONTENT = """
     <span class="eyebrow">Diagnostics</span>
     <h2 class="page-title">运行诊断</h2>
     <p class="subtitle">对网关基础连通性、DNS 解析和云端服务状态进行快速检查，可作为持续交付前的环境健康验证页面。</p>
-    <div class="nav">
-      <a class="nav-link" href="{{ url_for('dashboard') }}">返回控制台</a>
-      <a class="nav-link" href="{{ url_for('network') }}">网络设置</a>
-      <a class="nav-link" href="{{ url_for('upgrade') }}">固件升级</a>
-    </div>
   </div>
   <div class="header-side">
     <div class="muted">最近诊断时间</div>
@@ -1019,6 +1058,7 @@ def render_page(title: str, content_template: str, *, show_nav: bool = True, **c
         content=rendered_content,
         show_nav=show_nav,
         username=session.get('username', '未登录'),
+        active_page=request.endpoint or '',
     )
 
 
