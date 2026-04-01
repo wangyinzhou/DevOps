@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.device_adapter import MockDeviceAdapter
 from app.repository import DEFAULT_STATE, StateRepository
 from app.services import GatewayService
 
@@ -10,7 +11,7 @@ from app.services import GatewayService
 def build_service(tmp_path: Path) -> tuple[GatewayService, StateRepository]:
     repository = StateRepository(tmp_path / 'state.db')
     repository.save(json.loads(json.dumps(DEFAULT_STATE)))
-    return GatewayService(repository, artifact_dir=tmp_path / 'firmware'), repository
+    return GatewayService(repository, artifact_dir=tmp_path / 'firmware', adapter=MockDeviceAdapter('127.0.0.1')), repository
 
 
 def test_update_network_persists_changes(tmp_path):

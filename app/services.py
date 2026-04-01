@@ -6,18 +6,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.device_adapter import MockDeviceAdapter
+from app.device_adapter import DeviceAdapter
 from app.repository import StateRepository
 
 FIRMWARE_PATTERN = re.compile(r'^cpe_gateway_v(?P<version>\d+\.\d+\.\d+)\.bin$')
 
 
 class GatewayService:
-    def __init__(self, repository: StateRepository, artifact_dir: str | Path = 'artifacts/firmware', device_host: str = '192.168.1.1') -> None:
+    def __init__(self, repository: StateRepository, artifact_dir: str | Path = 'artifacts/firmware', adapter: DeviceAdapter | None = None) -> None:
         self.repository = repository
         self.artifact_dir = Path(artifact_dir)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
-        self.adapter = MockDeviceAdapter(device_host=device_host)
+        if adapter is None:
+            raise ValueError('GatewayService requires a concrete device adapter')
+        self.adapter = adapter
 
     @staticmethod
     def now_text() -> str:

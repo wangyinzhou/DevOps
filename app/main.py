@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Flask, jsonify, redirect, render_template_string, request, session, url_for
 
 from app.config import get_settings, resolve_artifact_dir, resolve_database_path, resolve_seed_path
+from app.device_adapter import create_device_adapter
 from app.repository import StateRepository
 from app.services import GatewayService
 
@@ -11,7 +12,18 @@ app = Flask(__name__)
 app.secret_key = settings.secret_key
 
 repository = StateRepository(resolve_database_path(settings), resolve_seed_path(settings))
-service = GatewayService(repository, artifact_dir=resolve_artifact_dir(settings), device_host=settings.device_host)
+device_adapter = create_device_adapter(
+    protocol=settings.device_protocol,
+    device_host=settings.device_host,
+    device_base_url=settings.device_base_url,
+    device_username=settings.device_username,
+    device_password=settings.device_password,
+    device_port=settings.device_port,
+    serial_port=settings.serial_port,
+    serial_baudrate=settings.serial_baudrate,
+    verify_ssl=settings.device_verify_ssl,
+)
+service = GatewayService(repository, artifact_dir=resolve_artifact_dir(settings), adapter=device_adapter)
 API_PREFIX = settings.api_prefix.rstrip('/')
 
 BASE_TEMPLATE = """

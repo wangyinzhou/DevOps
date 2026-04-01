@@ -6,6 +6,8 @@
 - **自动化测试**：基于 `Pytest + Selenium` 实现面向 CPE 网关 Web 管理界面的 UI 自动化测试框架。
 - **容器化运行**：通过 `docker-compose.yml` 启动 Mock CPE Web、Selenium Chrome 和测试执行容器，模拟隔离的持续交付环境。
 - **结果反馈**：生成 `pytest` 覆盖率报告与 `Allure` 结果文件，便于在 Jenkins 中可视化展示。
+
+- **真实设备协议接入层**：`app/device_adapter.py` 已支持 `http / ssh / telnet / serial` 四类适配器，可通过环境变量切换，不再只依赖 mock。
 - **前端演示界面**：Mock CPE 平台现已提供浅色高级风格页面，并补充控制台、网络设置、固件升级、运行诊断等模块，适合论文展示与自动化测试演示。
 
 ## 项目结构
@@ -186,6 +188,14 @@ docker compose up --build --abort-on-container-exit test-runner
 | `DATABASE_PATH` | `app/data/cpe_gateway.db` | SQLite 数据库文件路径 |
 | `SEED_PATH` | `app/data/state.json` | 数据初始化种子文件路径 |
 | `API_PREFIX` | `/api/v1` | 版本化 API 前缀 |
+| `DEVICE_PROTOCOL` | `mock` | 设备接入协议：`mock/http/ssh/telnet/serial` |
+| `DEVICE_BASE_URL` | `http://192.168.1.1` | HTTP 协议设备管理地址 |
+| `DEVICE_PORT` | `22` | SSH/Telnet 端口（SSH 常用 22，Telnet 常用 23） |
+| `DEVICE_USERNAME` | `admin` | 设备登录用户名 |
+| `DEVICE_PASSWORD` | `admin` | 设备登录密码 |
+| `DEVICE_VERIFY_SSL` | `false` | HTTP 协议是否校验证书 |
+| `SERIAL_PORT` | `/dev/ttyUSB0` | 串口设备路径 |
+| `SERIAL_BAUDRATE` | `115200` | 串口波特率 |
 
 ## 测试覆盖建议
 

@@ -10,6 +10,14 @@ def test_get_settings_reads_environment(monkeypatch):
     monkeypatch.setenv('DATABASE_PATH', 'var/app.db')
     monkeypatch.setenv('SEED_PATH', 'var/state.json')
     monkeypatch.setenv('API_PREFIX', '/api/test')
+    monkeypatch.setenv('DEVICE_PROTOCOL', 'http')
+    monkeypatch.setenv('DEVICE_BASE_URL', 'https://192.168.1.1')
+    monkeypatch.setenv('DEVICE_PORT', '2222')
+    monkeypatch.setenv('DEVICE_USERNAME', 'root')
+    monkeypatch.setenv('DEVICE_PASSWORD', 'pass')
+    monkeypatch.setenv('DEVICE_VERIFY_SSL', 'true')
+    monkeypatch.setenv('SERIAL_PORT', '/dev/ttyS1')
+    monkeypatch.setenv('SERIAL_BAUDRATE', '57600')
 
     settings = get_settings()
 
@@ -20,6 +28,14 @@ def test_get_settings_reads_environment(monkeypatch):
         database_path='var/app.db',
         seed_path='var/state.json',
         api_prefix='/api/test',
+        device_protocol='http',
+        device_base_url='https://192.168.1.1',
+        device_port=2222,
+        device_username='root',
+        device_password='pass',
+        device_verify_ssl=True,
+        serial_port='/dev/ttyS1',
+        serial_baudrate=57600,
     )
 
 
