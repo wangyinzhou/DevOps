@@ -290,9 +290,22 @@ BASE_TEMPLATE = """
     }
 
     .login-card {
-      width: min(560px, 100%);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.98));
+      width: min(640px, 100%);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 255, 0.99));
       box-shadow: var(--shadow-lg);
+    }
+
+    .login-logo {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto 8px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      color: #1d4ed8;
+      font-size: 42px;
+      background: linear-gradient(180deg, #eff6ff, #dbeafe);
+      border: 1px solid #bfdbfe;
     }
 
     .field-grid,
@@ -385,6 +398,21 @@ BASE_TEMPLATE = """
       border-color: var(--primary-border);
       background: var(--primary-soft);
       color: var(--primary);
+    }
+
+    .sidebar-footer {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.9;
+    }
+
+    .online-dot {
+      color: #16a34a;
+      font-size: 18px;
+      vertical-align: middle;
     }
 
     .btn:hover,
@@ -570,6 +598,10 @@ BASE_TEMPLATE = """
           <a id="nav-stats" class="nav-link {% if active_page == 'experiment_stats_page' %}active{% endif %}" href="{{ url_for('experiment_stats_page') }}">实验统计</a>
           <a id="nav-logout" class="nav-link" href="{{ url_for('logout') }}">安全退出</a>
         </nav>
+        <div class="sidebar-footer">
+          <div><span class="online-dot">●</span> 设备状态：<strong style="color:#16a34a">在线</strong></div>
+          <div>系统时间：{{ now_text }}</div>
+        </div>
       </aside>
       <section class="content-area">
         {{ content | safe }}
@@ -585,9 +617,9 @@ BASE_TEMPLATE = """
 LOGIN_CONTENT = """
 <section class="login-wrap">
   <div class="login-card">
-    <span class="eyebrow">Sign In</span>
-    <h2 id="page-title" class="page-title">欢迎进入 CPE 网关控制平台</h2>
-    <p class="subtitle">该演示系统用于模拟 CPE 设备管理页面，并为 Jenkins + Pytest + Selenium 的持续回归测试提供稳定的被测对象。</p>
+    <div class="login-logo">📶</div>
+    <h2 id="page-title" class="page-title" style="text-align:center;font-size:52px">Mock CPE 智能网关 Web 管理平台</h2>
+    <p class="subtitle" style="text-align:center;margin-top:8px;">管理员登录</p>
     {% if error %}<div id="error-message" class="message error">{{ error }}</div>{% endif %}
     <form method="post" class="form-grid">
       <label>用户名
@@ -597,7 +629,7 @@ LOGIN_CONTENT = """
         <input id="password" type="password" name="password" placeholder="请输入密码" />
       </label>
       <div class="actions">
-        <button id="login-btn" class="btn" type="submit">登录系统</button>
+        <button id="login-btn" class="btn" style="width:100%" type="submit">登 录</button>
       </div>
     </form>
     <div class="summary-grid">
@@ -1059,6 +1091,7 @@ def render_page(title: str, content_template: str, *, show_nav: bool = True, **c
         show_nav=show_nav,
         username=session.get('username', '未登录'),
         active_page=request.endpoint or '',
+        now_text=service.now_text(),
     )
 
 
