@@ -14,4 +14,4 @@ class UpgradePage(BasePage):
         return self.text_of(By.ID, 'upgrade-message')
 
     def status(self) -> str:
-        return self.text_of(By.ID, 'upgrade-status')
+        return self.text_of(By.ID, 'upgrade-status').strip().lower()
