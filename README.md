@@ -67,6 +67,8 @@
 
 ## 快速开始
 
+> 强烈建议先阅读本节，再按“方式一（Windows）”逐条执行。以下命令都可直接复制。
+
 ### 方式一：本地 Python 运行（Windows PowerShell）
 
 ```powershell
@@ -92,6 +94,81 @@ $env:BASE_URL = 'http://127.0.0.1:5000'
 $env:SELENIUM_REMOTE_URL = 'http://127.0.0.1:4444/wd/hub'
 pytest tests/ui --alluredir=allure-results
 ```
+
+### Windows + Docker Selenium + 本地 Flask（最详细逐步版）
+
+以下流程用于解决 Windows 本地常见问题（执行策略、`pytest` 命令找不到、Selenium 连接错误）：
+
+#### 步骤 0：准备 3 个 PowerShell 窗口
+
+- **窗口 A**：运行 Flask
+- **窗口 B**：运行 Docker Selenium
+- **窗口 C**：执行 pytest
+
+#### 步骤 1（窗口 A）：创建环境并启动 Flask
+
+```powershell
+cd D:\Project_260323\DevOps
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m flask --app app.main run --host 0.0.0.0 --port 5000
+```
+
+启动后访问：`http://127.0.0.1:5000/login`
+
+#### 步骤 2（窗口 B）：启动 Selenium Chrome 容器
+
+```powershell
+docker pull selenium/standalone-chrome
+docker run -d --name selenium-chrome -p 4444:4444 selenium/standalone-chrome
+docker ps
+```
+
+检查 Selenium 状态（必须返回 `ready: true` 才建议跑测试）：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:4444/status
+```
+
+> 注意：直接打开 `http://127.0.0.1:4444/wd/hub` 看到 `unknown command` 属于正常现象，因为该路径是 WebDriver 命令端点，不是页面。
+
+#### 步骤 3（窗口 C）：执行单元与 UI 测试
+
+```powershell
+cd D:\Project_260323\DevOps
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+
+# 可选：先跑单元测试确认后端正常
+python -m pytest tests/unit -q
+
+# UI 测试必须设置这两个变量
+$env:BASE_URL = 'http://127.0.0.1:5000'
+$env:SELENIUM_REMOTE_URL = 'http://127.0.0.1:4444/wd/hub'
+
+python -m pytest tests/ui --alluredir=allure-results
+```
+
+#### 常见错误与排查
+
+1. **`无法加载 Activate.ps1` / 执行策略禁止脚本**
+   - 必须先执行：
+   - `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
+
+2. **`pytest` 不是内部命令**
+   - 说明虚拟环境未激活成功或依赖未安装；
+   - 使用 `python -m pytest ...` 可以绕过 PATH 问题。
+
+3. **`ERR_CONNECTION_REFUSED`**
+   - Flask 没启动或 `BASE_URL` 不可达；
+   - 先在浏览器打开 `http://127.0.0.1:5000/login` 验证。
+
+4. **`InvalidSessionIdException`**
+   - 常见于原始连接失败后的连锁错误；
+   - 先修复 Flask/Selenium 可达性，再重跑 UI。
 
 ### 方式二：本地 Python 运行（Linux / macOS）
 

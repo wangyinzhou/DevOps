@@ -583,7 +583,7 @@ BASE_TEMPLATE = """
         <div class="brand">
           <div class="brand-badge">CPE</div>
           <div>
-            <h1 class="brand-title">CPE Gateway 管理平台</h1>
+            <h1 class="brand-title">Mock CPE 智能网关 Web 管理平台</h1>
             <div class="brand-subtitle">持续测试、持续交付与网关运维的统一演示工作台</div>
           </div>
         </div>
