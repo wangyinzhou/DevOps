@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 
 import pytest
 from _pytest.runner import CallInfo
+from selenium.common.exceptions import InvalidSessionIdException, WebDriverException
 
 from cpe_devops.config import get_settings
 from cpe_devops.utils.artifacts import screenshot_path
@@ -48,7 +49,12 @@ def driver(settings):
     driver = create_remote_driver(settings)
     driver.implicitly_wait(2)
     yield driver
-    driver.quit()
+    try:
+        driver.quit()
+    except InvalidSessionIdException:
+        pass
+    except WebDriverException:
+        pass
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -65,5 +71,10 @@ def attach_failure_artifacts(request, settings):
     driver = request.node.funcargs.get('driver') if hasattr(request.node, 'funcargs') else None
     if report and report.failed and driver:
         file_path = screenshot_path(settings.screenshot_dir, request.node.nodeid)
-        driver.save_screenshot(str(file_path))
-        allure.attach.file(str(file_path), name=f'screenshot-{int(time.time())}', attachment_type=allure.attachment_type.PNG)
+        try:
+            driver.save_screenshot(str(file_path))
+            allure.attach.file(str(file_path), name=f'screenshot-{int(time.time())}', attachment_type=allure.attachment_type.PNG)
+        except InvalidSessionIdException:
+            pass
+        except WebDriverException:
+            pass
