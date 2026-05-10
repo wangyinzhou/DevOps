@@ -617,31 +617,32 @@ BASE_TEMPLATE = """
 
 LOGIN_CONTENT = """
 <section class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">📶</div>
-    <h2 id="page-title" class="page-title" style="text-align:center;font-size:52px">Mock CPE 智能网关 Web 管理平台</h2>
-    <p class="subtitle" style="text-align:center;margin-top:8px;">管理员登录</p>
+  <div class="login-card" style="max-width:760px;padding:46px 58px;border-radius:18px;">
+    <div style="display:flex;justify-content:center;margin-bottom:12px;">
+      <div class="brand-badge" style="width:112px;height:74px;border-radius:10px;font-size:22px;">CPE</div>
+    </div>
+    <h2 id="page-title" class="page-title" style="text-align:center;font-size:52px;line-height:1.2;">Mock CPE 智能网关 Web 管理平台</h2>
+    <div style="display:flex;align-items:center;gap:18px;margin-top:16px;margin-bottom:24px;">
+      <div style="height:1px;background:#d6dfef;flex:1;"></div>
+      <p class="subtitle" style="text-align:center;margin:0;font-size:32px;">管理员登录</p>
+      <div style="height:1px;background:#d6dfef;flex:1;"></div>
+    </div>
     {% if error %}<div id="error-message" class="message error">{{ error }}</div>{% endif %}
     <form method="post" class="form-grid">
       <label>用户名
-        <input id="username" name="username" placeholder="请输入管理员账号" />
+        <input id="username" name="username" value="{{ default_username }}" />
       </label>
       <label>密码
-        <input id="password" type="password" name="password" placeholder="请输入密码" />
+        <input id="password" type="password" name="password" value="{{ default_password }}" />
       </label>
       <div class="actions">
-        <button id="login-btn" class="btn" style="width:100%" type="submit">登 录</button>
+        <button id="login-btn" class="btn" style="width:100%;font-size:40px;letter-spacing:6px;" type="submit">登 录</button>
       </div>
     </form>
-    <div class="summary-grid">
-      <div class="summary-item">
-        <span class="muted">默认账号</span>
-        <strong>{{ default_username }}</strong>
-      </div>
-      <div class="summary-item">
-        <span class="muted">默认密码</span>
-        <strong>{{ default_password }}</strong>
-      </div>
+    <div style="display:flex;align-items:center;gap:18px;margin-top:26px;">
+      <div style="height:1px;background:#d6dfef;flex:1;"></div>
+      <span class="muted" style="font-size:30px;">请输入用户名和密码</span>
+      <div style="height:1px;background:#d6dfef;flex:1;"></div>
     </div>
   </div>
 </section>
