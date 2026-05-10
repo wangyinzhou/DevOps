@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cpe_devops.config import Settings, get_settings, to_bool
+from cpe_devops.config import Settings, get_settings, normalize_base_url, to_bool
 
 
 def test_to_bool_handles_truthy_and_default(monkeypatch):
@@ -20,9 +20,13 @@ def test_get_settings_reads_environment(monkeypatch):
     settings = get_settings()
 
     assert settings == Settings(
-        base_url='http://127.0.0.1:5000',
+        base_url='http://host.docker.internal:5000',
         selenium_remote_url='http://127.0.0.1:4444/wd/hub',
         browser='chrome',
         headless=False,
         screenshot_dir='tmp/screens',
     )
+
+
+def test_normalize_base_url_keeps_non_local_hosts():
+    assert normalize_base_url('http://mock-cpe:5000', 'http://selenium:4444/wd/hub') == 'http://mock-cpe:5000'
