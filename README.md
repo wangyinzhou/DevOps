@@ -15,6 +15,7 @@
 ```text
 .
 ├── app/                     # 模拟 CPE 网关 Web 管理界面（Flask）
+├── frontend/                # 重建版前端（Vue3 + Element Plus，Phase 1）
 ├── cpe_devops/             # 自动化测试框架核心代码
 │   ├── pages/              # Page Object 封装
 │   └── utils/              # 配置、截图、等待等工具
@@ -26,6 +27,12 @@
 ├── Dockerfile              # 测试执行镜像
 └── requirements.txt        # Python 依赖
 ```
+
+## 重建计划进度（按你要求“重建项目”执行）
+
+- ✅ **Phase 1（已完成）**：新增 `frontend/`，使用 Vue3 + Element Plus 搭建登录页、顶栏、侧栏、仪表盘骨架，风格向你提供的蓝白运营商后台图片对齐。
+- ⏳ **Phase 2（下一步）**：将网络配置、固件升级、固件制品、升级任务页面逐个按图还原，并联通后端 API。
+- ⏳ **Phase 3（下一步）**：补齐论文指标看板（覆盖率、通过率、耗时、三轮回归对比）与导出能力。
 
 ## 功能说明
 
