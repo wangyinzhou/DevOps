@@ -35,14 +35,14 @@ BASE_TEMPLATE = """
   <title>{{ title }}</title>
   <style>
     :root {
-      --bg: #f4f7fb;
-      --bg-accent: #eef4ff;
-      --surface: rgba(255, 255, 255, 0.92);
+      --bg: #f3f7ff;
+      --bg-accent: #eaf2ff;
+      --surface: #ffffff;
       --surface-soft: #f8fbff;
       --surface-strong: #ffffff;
-      --line: #dbe4f0;
-      --text: #162033;
-      --muted: #66758f;
+      --line: #d9e3f2;
+      --text: #17346f;
+      --muted: #60749a;
       --primary: #2563eb;
       --primary-soft: #eff6ff;
       --primary-border: #bfdbfe;
@@ -52,11 +52,11 @@ BASE_TEMPLATE = """
       --warning-soft: #fff7ed;
       --danger: #dc2626;
       --danger-soft: #fef2f2;
-      --shadow-lg: 0 24px 60px rgba(37, 99, 235, 0.08);
-      --shadow-md: 0 12px 30px rgba(15, 23, 42, 0.08);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 14px;
+      --shadow-lg: 0 14px 34px rgba(23, 52, 111, 0.08);
+      --shadow-md: 0 8px 20px rgba(23, 52, 111, 0.06);
+      --radius-xl: 14px;
+      --radius-lg: 12px;
+      --radius-md: 10px;
     }
 
     * { box-sizing: border-box; }
@@ -75,7 +75,7 @@ BASE_TEMPLATE = """
     a { color: inherit; }
 
     .shell {
-      width: min(1320px, calc(100% - 32px));
+      width: min(1460px, calc(100% - 14px));
       margin: 0 auto;
       padding: 24px 0 40px;
     }
@@ -83,23 +83,24 @@ BASE_TEMPLATE = """
     .app-shell {
       display: grid;
       grid-template-columns: 260px minmax(0, 1fr);
-      gap: 20px;
+      gap: 0;
       align-items: start;
     }
 
     .sidebar {
       position: sticky;
       top: 18px;
-      padding: 22px 16px;
-      border: 1px solid rgba(219, 228, 240, 0.95);
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.9);
-      box-shadow: var(--shadow-lg);
-      backdrop-filter: blur(12px);
+      min-height: calc(100vh - 28px);
+      padding: 16px 14px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: #fff;
+      box-shadow: none;
     }
 
     .content-area {
       min-width: 0;
+      padding: 0 18px;
     }
 
     .brand {
@@ -116,7 +117,7 @@ BASE_TEMPLATE = """
       border-radius: 14px;
       background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
       color: white;
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 800;
       box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
     }
@@ -141,8 +142,8 @@ BASE_TEMPLATE = """
     }
 
     .brand-subtitle {
-      margin-top: 4px;
-      font-size: 13px;
+      margin-top: 3px;
+      font-size: 12px;
     }
 
     .user-chip {
