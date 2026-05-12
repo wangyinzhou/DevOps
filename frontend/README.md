@@ -1,6 +1,11 @@
 # Frontend Rebuild (Phase 1)
 
-This folder contains the first-phase rebuilt UI shell based on Vue3 + Element Plus.
+This folder contains the rebuilt UI based on Vue3 + Element Plus.
+
+## Phase status
+
+- Phase 1: login + layout shell ✅
+- Phase 2: network / upgrade / artifacts / jobs view modules ✅ (style-matched component structure)
 
 ## Run
 
