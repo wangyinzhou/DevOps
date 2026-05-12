@@ -33,10 +33,10 @@
           </div>
           <template v-if="active==='dashboard'">
             <div class="grid">
-              <div class="card">设备型号：CPE-X1000</div>
-              <div class="card">固件版本：v1.2.3</div>
-              <div class="card">运行时间：12天08小时</div>
-              <div class="card">WAN 状态：在线</div>
+              <div class="card">设备型号：{{ dashboard.model }}</div>
+              <div class="card">固件版本：{{ dashboard.fw }}</div>
+              <div class="card">运行时间：{{ dashboard.uptime }}</div>
+              <div class="card">WAN 状态：{{ dashboard.wan }}</div>
             </div>
           </template>
 
@@ -59,10 +59,10 @@
               <div class="card">
                 <h3>当前配置摘要</h3>
                 <ul class="meta-list">
-                  <li><span>SSID</span><strong>CPE-X1000_Home</strong></li>
-                  <li><span>联网模式</span><strong>PPPoE</strong></li>
-                  <li><span>访客 Wi‑Fi</span><strong>已启用</strong></li>
-                  <li><span>信道</span><strong>自动</strong></li>
+                  <li><span>SSID</span><strong>{{ networkSummary.ssid }}</strong></li>
+                  <li><span>联网模式</span><strong>{{ networkSummary.mode }}</strong></li>
+                  <li><span>访客 Wi‑Fi</span><strong>{{ networkSummary.guest }}</strong></li>
+                  <li><span>信道</span><strong>{{ networkSummary.channel }}</strong></li>
                 </ul>
               </div>
             </section>
@@ -81,9 +81,9 @@
               <div class="card">
                 <h3>当前升级信息</h3>
                 <ul class="meta-list">
-                  <li><span>当前固件版本</span><strong>v1.2.2</strong></li>
-                  <li><span>目标固件版本</span><strong>v1.2.3</strong></li>
-                  <li><span>校验状态</span><strong style="color:#16a34a">已通过</strong></li>
+                  <li><span>当前固件版本</span><strong>{{ upgradeSummary.current }}</strong></li>
+                  <li><span>目标固件版本</span><strong>{{ upgradeSummary.target }}</strong></li>
+                  <li><span>校验状态</span><strong style="color:#16a34a">{{ upgradeSummary.status }}</strong></li>
                 </ul>
               </div>
             </section>
@@ -102,15 +102,15 @@
               <div class="card">
                 <h3>当前制品摘要</h3>
                 <ul class="meta-list">
-                  <li><span>当前制品版本</span><strong>v1.2.3</strong></li>
-                  <li><span>来源类型</span><strong>Jenkins 构建</strong></li>
-                  <li><span>MD5 状态</span><strong style="color:#16a34a">已生成</strong></li>
+                  <li><span>当前制品版本</span><strong>{{ artifactsSummary.version }}</strong></li>
+                  <li><span>来源类型</span><strong>{{ artifactsSummary.source }}</strong></li>
+                  <li><span>MD5 状态</span><strong style="color:#16a34a">{{ artifactsSummary.md5 }}</strong></li>
                 </ul>
               </div>
             </section>
             <div class="card" style="margin-top:14px;">
               <h3>制品列表</h3>
-              <el-table :data="artifactRows">
+              <el-table :data="liveArtifactRows">
                 <el-table-column prop="name" label="文件名" />
                 <el-table-column prop="version" label="版本" />
                 <el-table-column prop="source" label="来源" />
@@ -131,9 +131,9 @@
               <div class="card">
                 <h3>当前任务摘要</h3>
                 <ul class="meta-list">
-                  <li><span>当前任务状态</span><strong style="color:#16a34a">passed</strong></li>
-                  <li><span>目标固件版本</span><strong>v1.2.3</strong></li>
-                  <li><span>API 检查</span><strong style="color:#16a34a">通过</strong></li>
+                  <li><span>当前任务状态</span><strong style="color:#16a34a">{{ jobsSummary.status }}</strong></li>
+                  <li><span>目标固件版本</span><strong>{{ jobsSummary.target }}</strong></li>
+                  <li><span>API 检查</span><strong style="color:#16a34a">{{ jobsSummary.api }}</strong></li>
                 </ul>
               </div>
             </section>
@@ -145,9 +145,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 const view = ref<'login' | 'dashboard'>('login')
 const active = ref('dashboard')
+const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://127.0.0.1:5000/api/v1'
+
+const dashboard = ref({ model: 'CPE-X1000', fw: 'v1.2.3', uptime: '-', wan: '在线' })
+const networkSummary = ref({ ssid: 'CPE-X1000_Home', mode: 'PPPoE', guest: '已启用', channel: '自动' })
+const upgradeSummary = ref({ current: 'v1.2.2', target: 'v1.2.3', status: '已通过' })
+const artifactsSummary = ref({ version: 'v1.2.3', source: 'Jenkins 构建', md5: '已生成' })
+const jobsSummary = ref({ status: 'passed', target: 'v1.2.3', api: '通过' })
 const bannerTitle = computed(() => ({
   dashboard: '欢迎，admin',
   network: '网络配置',
@@ -161,4 +168,95 @@ const artifactRows = [
   { name: 'cpe_gateway_v1.2.3.bin', version: 'v1.2.3', source: 'Jenkins 构建' },
   { name: 'cpe_gateway_v1.2.2.bin', version: 'v1.2.2', source: 'Jenkins 构建' }
 ]
+
+const liveArtifactRows = ref(artifactRows)
+
+async function fetchJson(path: string) {
+  const resp = await fetch(`${apiBase}${path}`)
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return await resp.json()
+}
+
+async function loadDashboard() {
+  try {
+    const data = await fetchJson('/dashboard')
+    dashboard.value = {
+      model: data.system?.device_model ?? dashboard.value.model,
+      fw: data.system?.firmware_version ?? dashboard.value.fw,
+      uptime: data.system?.uptime ?? '-',
+      wan: data.system?.wan_status ?? '在线'
+    }
+  } catch (_e) {
+    // keep demo fallback
+  }
+}
+
+async function loadNetworkSummary() {
+  try {
+    const data = await fetchJson('/network')
+    networkSummary.value = {
+      ssid: data.network?.ssid ?? networkSummary.value.ssid,
+      mode: String(data.network?.mode ?? networkSummary.value.mode).toUpperCase(),
+      guest: data.network?.guest_wifi === 'enabled' ? '已启用' : '已禁用',
+      channel: data.network?.channel ?? networkSummary.value.channel
+    }
+  } catch (_e) {}
+}
+
+async function loadUpgradeSummary() {
+  try {
+    const data = await fetchJson('/upgrade')
+    upgradeSummary.value = {
+      current: data.current_version ?? upgradeSummary.value.current,
+      target: data.target_version ?? upgradeSummary.value.target,
+      status: data.status ?? upgradeSummary.value.status
+    }
+  } catch (_e) {}
+}
+
+async function loadArtifacts() {
+  try {
+    const data = await fetchJson('/artifacts')
+    if (Array.isArray(data.artifacts)) {
+      liveArtifactRows.value = data.artifacts.map((item: any) => ({
+        name: item.filename,
+        version: `v${item.version}`,
+        source: item.source_type
+      }))
+      const first = data.artifacts[0]
+      if (first) {
+        artifactsSummary.value = {
+          version: `v${first.version}`,
+          source: first.source_type,
+          md5: first.md5 ? '已生成' : '未生成'
+        }
+      }
+    }
+  } catch (_e) {}
+}
+
+async function loadJobs() {
+  try {
+    const data = await fetchJson('/upgrade-jobs')
+    if (Array.isArray(data.jobs) && data.jobs[0]) {
+      jobsSummary.value = {
+        status: data.jobs[0].status,
+        target: `v${data.jobs[0].target_version}`,
+        api: data.jobs[0].api_check ? '通过' : '失败'
+      }
+    }
+  } catch (_e) {}
+}
+
+watch(active, async (val) => {
+  if (val === 'dashboard') await loadDashboard()
+  if (val === 'network') await loadNetworkSummary()
+  if (val === 'upgrade') await loadUpgradeSummary()
+  if (val === 'artifacts') await loadArtifacts()
+  if (val === 'jobs') await loadJobs()
+})
+
+onMounted(async () => {
+  await loadDashboard()
+})
 </script>

@@ -16,3 +16,12 @@ npm run dev
 ```
 
 Open: http://127.0.0.1:5173
+
+## API base
+
+- Default: `http://127.0.0.1:5000/api/v1`
+- Override with env:
+
+```bash
+VITE_API_BASE=http://127.0.0.1:5000/api/v1 npm run dev
+```
