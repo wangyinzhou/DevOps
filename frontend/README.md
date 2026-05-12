@@ -6,6 +6,8 @@ This folder contains the rebuilt UI based on Vue3 + Element Plus.
 
 - Phase 1: login + layout shell ✅
 - Phase 2: network / upgrade / artifacts / jobs view modules ✅ (style-matched component structure)
+- Phase 3: API data binding for core modules ✅
+- Phase 4: experiment stats / KPI board / history tables ✅
 
 ## Run
 

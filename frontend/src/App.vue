@@ -22,6 +22,7 @@
           <el-menu-item index="diagnostics">运行诊断</el-menu-item>
           <el-menu-item index="artifacts">固件制品</el-menu-item>
           <el-menu-item index="jobs">升级任务</el-menu-item>
+          <el-menu-item index="stats">实验统计</el-menu-item>
         </el-menu>
       </aside>
       <div>
@@ -137,6 +138,55 @@
                 </ul>
               </div>
             </section>
+            <div class="card" style="margin-top:14px;">
+              <h3>任务历史</h3>
+              <el-table :data="jobRows">
+                <el-table-column prop="name" label="任务名称" />
+                <el-table-column prop="version" label="目标版本" />
+                <el-table-column prop="status" label="状态" />
+                <el-table-column prop="api" label="API" />
+                <el-table-column prop="web" label="Web" />
+              </el-table>
+            </div>
+          </template>
+
+          <template v-else-if="active==='stats'">
+            <section class="grid">
+              <div class="card"><h4>实验轮次</h4><p class="kpi">{{ stats.count }}</p></div>
+              <div class="card"><h4>平均覆盖率</h4><p class="kpi">{{ stats.avgCoverage }}%</p></div>
+              <div class="card"><h4>平均通过率</h4><p class="kpi">{{ stats.avgPassRate }}%</p></div>
+              <div class="card"><h4>平均耗时</h4><p class="kpi">{{ stats.avgDuration }}s</p></div>
+            </section>
+            <section class="dual">
+              <div class="card">
+                <h3>三轮回归趋势（占位图）</h3>
+                <div class="trend-wrap">
+                  <div class="trend-bar" v-for="(item, idx) in trendRows" :key="idx">
+                    <span>{{ item.round }}</span>
+                    <div class="bar-bg"><div class="bar-inner" :style="{ width: item.pass + '%' }"></div></div>
+                    <strong>{{ item.pass }}%</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <h3>失败原因分布</h3>
+                <ul class="meta-list">
+                  <li><span>网络抖动</span><strong>2</strong></li>
+                  <li><span>设备回连超时</span><strong>1</strong></li>
+                  <li><span>配置冲突</span><strong>1</strong></li>
+                </ul>
+              </div>
+            </section>
+            <div class="card" style="margin-top:14px;">
+              <h3>实验记录</h3>
+              <el-table :data="experimentRows">
+                <el-table-column prop="jobId" label="任务ID" />
+                <el-table-column prop="coverage" label="覆盖率" />
+                <el-table-column prop="passRate" label="通过率" />
+                <el-table-column prop="duration" label="耗时(s)" />
+                <el-table-column prop="reason" label="失败原因" />
+              </el-table>
+            </div>
           </template>
         </main>
       </div>
@@ -155,13 +205,15 @@ const networkSummary = ref({ ssid: 'CPE-X1000_Home', mode: 'PPPoE', guest: '已�
 const upgradeSummary = ref({ current: 'v1.2.2', target: 'v1.2.3', status: '已通过' })
 const artifactsSummary = ref({ version: 'v1.2.3', source: 'Jenkins 构建', md5: '已生成' })
 const jobsSummary = ref({ status: 'passed', target: 'v1.2.3', api: '通过' })
+const stats = ref({ count: 3, avgCoverage: 95.4, avgPassRate: 97.2, avgDuration: 342 })
 const bannerTitle = computed(() => ({
   dashboard: '欢迎，admin',
   network: '网络配置',
   upgrade: '固件升级',
   diagnostics: '运行诊断',
   artifacts: '固件制品管理',
-  jobs: '升级任务'
+  jobs: '升级任务',
+  stats: '实验统计'
 }[active.value] ?? '控制台'))
 
 const artifactRows = [
@@ -170,6 +222,20 @@ const artifactRows = [
 ]
 
 const liveArtifactRows = ref(artifactRows)
+const jobRows = ref([
+  { name: '升级到 v1.2.3', version: 'v1.2.3', status: 'passed', api: '通过', web: '通过' },
+  { name: '升级到 v1.2.2', version: 'v1.2.2', status: 'passed', api: '通过', web: '通过' }
+])
+const trendRows = ref([
+  { round: '第1轮', pass: 93 },
+  { round: '第2轮', pass: 97 },
+  { round: '第3轮', pass: 99 }
+])
+const experimentRows = ref([
+  { jobId: '#31', coverage: '95%', passRate: '97%', duration: 338, reason: '无' },
+  { jobId: '#30', coverage: '94%', passRate: '96%', duration: 351, reason: '网络抖动' },
+  { jobId: '#29', coverage: '97%', passRate: '99%', duration: 336, reason: '无' }
+])
 
 async function fetchJson(path: string) {
   const resp = await fetch(`${apiBase}${path}`)
@@ -248,12 +314,41 @@ async function loadJobs() {
   } catch (_e) {}
 }
 
+async function loadStats() {
+  try {
+    const data = await fetchJson('/experiments')
+    if (Array.isArray(data.runs)) {
+      experimentRows.value = data.runs.map((x: any) => ({
+        jobId: `#${x.job_id}`,
+        coverage: `${x.coverage}%`,
+        passRate: `${x.pass_rate}%`,
+        duration: x.duration_seconds,
+        reason: x.failure_reason || '无'
+      }))
+    }
+    if (data.summary) {
+      stats.value = {
+        count: data.summary.count,
+        avgCoverage: data.summary.avg_coverage,
+        avgPassRate: data.summary.avg_pass_rate,
+        avgDuration: data.summary.avg_duration
+      }
+      trendRows.value = [
+        { round: '通过率', pass: Number(data.summary.avg_pass_rate) || 0 },
+        { round: '覆盖率', pass: Number(data.summary.avg_coverage) || 0 },
+        { round: '稳定性', pass: Math.max(0, 100 - Number(data.summary.avg_flaky_rate || 0)) }
+      ]
+    }
+  } catch (_e) {}
+}
+
 watch(active, async (val) => {
   if (val === 'dashboard') await loadDashboard()
   if (val === 'network') await loadNetworkSummary()
   if (val === 'upgrade') await loadUpgradeSummary()
   if (val === 'artifacts') await loadArtifacts()
   if (val === 'jobs') await loadJobs()
+  if (val === 'stats') await loadStats()
 })
 
 onMounted(async () => {
