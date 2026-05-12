@@ -47,14 +47,15 @@
                 <h3>无线网络设置</h3>
                 <el-form label-position="top" class="form-grid">
                   <el-row :gutter="12">
-                    <el-col :span="12"><el-form-item label="SSID"><el-input model-value="CPE-X1000_Home" /></el-form-item></el-col>
-                    <el-col :span="12"><el-form-item label="无线密码"><el-input type="password" model-value="12345678" show-password /></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="SSID"><el-input v-model="networkForm.ssid" /></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="无线密码"><el-input type="password" v-model="networkForm.password" show-password /></el-form-item></el-col>
                   </el-row>
                   <el-row :gutter="12">
-                    <el-col :span="12"><el-form-item label="联网模式"><el-select model-value="PPPoE"><el-option label="PPPoE" value="PPPoE" /></el-select></el-form-item></el-col>
-                    <el-col :span="12"><el-form-item label="Wi‑Fi 信道"><el-select model-value="自动"><el-option label="自动" value="自动" /></el-select></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="联网模式"><el-select v-model="networkForm.mode"><el-option label="PPPoE" value="pppoe" /><el-option label="DHCP" value="dhcp" /></el-select></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="Wi‑Fi 信道"><el-select v-model="networkForm.channel"><el-option label="自动" value="Auto" /><el-option label="1" value="1" /><el-option label="6" value="6" /><el-option label="11" value="11" /></el-select></el-form-item></el-col>
                   </el-row>
-                  <el-button type="primary">保存配置</el-button>
+                  <el-button type="primary" @click="saveNetwork">保存配置</el-button>
+                  <el-tag v-if="networkMsg" type="success" style="margin-left:10px;">{{ networkMsg }}</el-tag>
                 </el-form>
               </div>
               <div class="card">
@@ -74,9 +75,10 @@
               <div class="card">
                 <h3>固件文件校验</h3>
                 <el-form label-position="top">
-                  <el-form-item label="固件文件名"><el-input model-value="cpe_gateway_v1.2.3.bin" /></el-form-item>
+                  <el-form-item label="固件文件名"><el-input v-model="upgradeFilename" /></el-form-item>
                   <el-form-item label="命名规范"><el-input model-value="仅允许 .bin 后缀，格式：cpe_gateway_vX.Y.Z.bin" /></el-form-item>
-                  <el-button type="primary">开始校验</el-button>
+                  <el-button type="primary" @click="validateUpgrade">开始校验</el-button>
+                  <el-tag v-if="upgradeMsg" :type="upgradeMsgType" style="margin-left:10px;">{{ upgradeMsg }}</el-tag>
                 </el-form>
               </div>
               <div class="card">
@@ -206,6 +208,11 @@ const upgradeSummary = ref({ current: 'v1.2.2', target: 'v1.2.3', status: '已�
 const artifactsSummary = ref({ version: 'v1.2.3', source: 'Jenkins 构建', md5: '已生成' })
 const jobsSummary = ref({ status: 'passed', target: 'v1.2.3', api: '通过' })
 const stats = ref({ count: 3, avgCoverage: 95.4, avgPassRate: 97.2, avgDuration: 342 })
+const networkForm = ref({ ssid: 'CPE-X1000_Home', password: '12345678', mode: 'pppoe', channel: 'Auto', guest_wifi: 'enabled' })
+const networkMsg = ref('')
+const upgradeFilename = ref('cpe_gateway_v1.2.3.bin')
+const upgradeMsg = ref('')
+const upgradeMsgType = ref<'success' | 'danger'>('success')
 const bannerTitle = computed(() => ({
   dashboard: '欢迎，admin',
   network: '网络配置',
@@ -266,6 +273,11 @@ async function loadNetworkSummary() {
       guest: data.network?.guest_wifi === 'enabled' ? '已启用' : '已禁用',
       channel: data.network?.channel ?? networkSummary.value.channel
     }
+    networkForm.value.ssid = data.network?.ssid ?? networkForm.value.ssid
+    networkForm.value.password = data.network?.password ?? networkForm.value.password
+    networkForm.value.mode = data.network?.mode ?? networkForm.value.mode
+    networkForm.value.channel = data.network?.channel ?? networkForm.value.channel
+    networkForm.value.guest_wifi = data.network?.guest_wifi ?? networkForm.value.guest_wifi
   } catch (_e) {}
 }
 
@@ -277,7 +289,42 @@ async function loadUpgradeSummary() {
       target: data.target_version ?? upgradeSummary.value.target,
       status: data.status ?? upgradeSummary.value.status
     }
+    if (data.last_filename) upgradeFilename.value = data.last_filename
   } catch (_e) {}
+}
+
+async function saveNetwork() {
+  try {
+    const resp = await fetch(`${apiBase}/network`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(networkForm.value)
+    })
+    if (!resp.ok) throw new Error('save failed')
+    const data = await resp.json()
+    networkMsg.value = data.message ?? '网络配置已保存'
+    await loadNetworkSummary()
+  } catch (_e) {
+    networkMsg.value = '保存失败'
+  }
+}
+
+async function validateUpgrade() {
+  try {
+    const resp = await fetch(`${apiBase}/upgrade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: upgradeFilename.value })
+    })
+    if (!resp.ok) throw new Error('validate failed')
+    const data = await resp.json()
+    upgradeMsg.value = data.message ?? '校验完成'
+    upgradeMsgType.value = data.status === 'rejected' ? 'danger' : 'success'
+    await loadUpgradeSummary()
+  } catch (_e) {
+    upgradeMsg.value = '校验失败'
+    upgradeMsgType.value = 'danger'
+  }
 }
 
 async function loadArtifacts() {
