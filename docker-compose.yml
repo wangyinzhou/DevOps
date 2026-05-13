@@ -1,0 +1,30 @@
+services:
+  mock-cpe:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python -m flask --app app.main run --host 0.0.0.0 --port 5000"
+    ports:
+      - "5000:5000"
+
+  selenium:
+    image: selenium/standalone-chrome:134.0
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mock-cpe
+      - selenium
+    environment:
+      BASE_URL: http://mock-cpe:5000
+      SELENIUM_REMOTE_URL: http://selenium:4444/wd/hub
+      HEADLESS: "true"
+    command: >
+      sh -c "pytest tests/unit --cov=cpe_devops --cov-report=term-missing \
+      && pytest tests/ui -m 'smoke or ui' --alluredir=allure-results"
