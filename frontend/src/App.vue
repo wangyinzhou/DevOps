@@ -97,9 +97,12 @@
               <div class="card">
                 <h3>制品登记</h3>
                 <el-form label-position="top">
-                  <el-form-item label="固件文件名"><el-input model-value="cpe_gateway_v1.2.3.bin" /></el-form-item>
-                  <el-form-item label="来源类型"><el-select model-value="Jenkins 构建"><el-option label="Jenkins 构建" value="Jenkins 构建" /></el-select></el-form-item>
-                  <el-button type="primary">登记制品</el-button>
+                  <el-form-item label="固件文件名"><el-input v-model="artifactForm.filename" /></el-form-item>
+                  <el-form-item label="来源类型"><el-select v-model="artifactForm.source_type"><el-option label="upload" value="upload" /><el-option label="git" value="git" /><el-option label="path" value="path" /></el-select></el-form-item>
+                  <el-form-item label="来源引用"><el-input v-model="artifactForm.source_ref" /></el-form-item>
+                  <el-form-item label="本地路径"><el-input v-model="artifactForm.local_path" /></el-form-item>
+                  <el-button type="primary" @click="registerArtifact">登记制品</el-button>
+                  <el-tag v-if="artifactMsg" :type="artifactMsgType" style="margin-left:10px;">{{ artifactMsg }}</el-tag>
                 </el-form>
               </div>
               <div class="card">
@@ -126,9 +129,14 @@
               <div class="card">
                 <h3>创建升级任务</h3>
                 <el-form label-position="top">
-                  <el-form-item label="选择固件制品"><el-select model-value="cpe_gateway_v1.2.3.bin"><el-option label="cpe_gateway_v1.2.3.bin" value="cpe_gateway_v1.2.3.bin" /></el-select></el-form-item>
-                  <el-form-item label="设备协议"><el-select model-value="mock"><el-option label="mock" value="mock" /></el-select></el-form-item>
-                  <el-button type="primary">创建并执行任务</el-button>
+                  <el-form-item label="选择固件制品">
+                    <el-select v-model="jobForm.artifact_id">
+                      <el-option v-for="item in artifactOptions" :key="item.id" :label="item.label" :value="item.id" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="触发来源"><el-input v-model="jobForm.trigger_source" /></el-form-item>
+                  <el-button type="primary" @click="createJob">创建并执行任务</el-button>
+                  <el-tag v-if="jobMsg" :type="jobMsgType" style="margin-left:10px;">{{ jobMsg }}</el-tag>
                 </el-form>
               </div>
               <div class="card">
@@ -213,6 +221,13 @@ const networkMsg = ref('')
 const upgradeFilename = ref('cpe_gateway_v1.2.3.bin')
 const upgradeMsg = ref('')
 const upgradeMsgType = ref<'success' | 'danger'>('success')
+const artifactForm = ref({ filename: 'cpe_gateway_v1.2.3.bin', source_type: 'upload', source_ref: 'manual', local_path: '', notes: '' })
+const artifactMsg = ref('')
+const artifactMsgType = ref<'success' | 'danger'>('success')
+const artifactOptions = ref<{ id: number; label: string }[]>([])
+const jobForm = ref({ artifact_id: undefined as number | undefined, trigger_source: 'ui-console' })
+const jobMsg = ref('')
+const jobMsgType = ref<'success' | 'danger'>('success')
 const bannerTitle = computed(() => ({
   dashboard: '欢迎，admin',
   network: '网络配置',
@@ -336,6 +351,10 @@ async function loadArtifacts() {
         version: `v${item.version}`,
         source: item.source_type
       }))
+      artifactOptions.value = data.artifacts.map((item: any) => ({ id: item.id, label: `${item.filename} (#${item.id})` }))
+      if (!jobForm.value.artifact_id && data.artifacts[0]) {
+        jobForm.value.artifact_id = data.artifacts[0].id
+      }
       const first = data.artifacts[0]
       if (first) {
         artifactsSummary.value = {
@@ -358,7 +377,53 @@ async function loadJobs() {
         api: data.jobs[0].api_check ? '通过' : '失败'
       }
     }
+    if (Array.isArray(data.jobs)) {
+      jobRows.value = data.jobs.map((x: any) => ({
+        name: x.job_name,
+        version: `v${x.target_version}`,
+        status: x.status,
+        api: x.api_check ? '通过' : '失败',
+        web: x.web_check ? '通过' : '失败'
+      }))
+    }
   } catch (_e) {}
+}
+
+async function registerArtifact() {
+  try {
+    const resp = await fetch(`${apiBase}/artifacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(artifactForm.value)
+    })
+    const data = await resp.json()
+    if (!resp.ok || data.ok === false) throw new Error(data.message || 'register failed')
+    artifactMsg.value = data.message || '制品登记成功'
+    artifactMsgType.value = 'success'
+    await loadArtifacts()
+  } catch (e: any) {
+    artifactMsg.value = e?.message || '制品登记失败'
+    artifactMsgType.value = 'danger'
+  }
+}
+
+async function createJob() {
+  try {
+    if (!jobForm.value.artifact_id) throw new Error('请选择制品')
+    const resp = await fetch(`${apiBase}/upgrade-jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobForm.value)
+    })
+    const data = await resp.json()
+    if (!resp.ok || data.ok === false) throw new Error(data.message || 'create failed')
+    jobMsg.value = data.message || '任务执行成功'
+    jobMsgType.value = 'success'
+    await loadJobs()
+  } catch (e: any) {
+    jobMsg.value = e?.message || '任务执行失败'
+    jobMsgType.value = 'danger'
+  }
 }
 
 async function loadStats() {
